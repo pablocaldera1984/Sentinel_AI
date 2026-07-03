@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLOBAL365 | Auditoría IT & Inteligencia Sentinel</title>
+
+    <!-- Cabeceras de Seguridad Estrictas (Cumplimiento OWASP ASVS v4.0.3) -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';">
+
+    <!-- Control de Hojas de Estilo Locales y CDN con Integridad Fija (SRI) -->
+    <link rel="stylesheet" href="estilos.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer">
+</head>
+<body class="antialiased">
+
+    <!-- NAVEGACIÓN -->
+    <nav id="mainNav" class="fixed w-full z-[1000] header-nav">
+        <div class="max-w-7xl mx-auto px-6 h-24 flex justify-between items-center transition-all duration-300">
+            <div class="flex-shrink-0 cursor-pointer" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+                <img src="2.png" alt="GLOBAL365 Logo" class="h-14 w-auto" id="navLogo">
+            </div>
+            <div class="hidden lg:flex items-center gap-8 ml-auto mr-12">
+                <a href="#sentinel" class="nav-link uppercase">Software Sentinel</a>
+                <a href="#metodo" class="nav-link uppercase">Auditoría 360</a>
+                <a href="#packs" class="nav-link uppercase">Packs B2B</a>
+            </div>
+            <a href="scc/login.html" class="bg-transparent rounded-full px-4 py-1.5 flex items-center gap-1.5 border border-emerald-500 text-[11px] font-semibold text-emerald-500 uppercase tracking-[0.15em] transition-all duration-300 hover:bg-gradient-to-r hover:from-emerald-400 hover:to-teal-500 hover:text-[#041329] hover:border-transparent hover:shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                <svg class="w-3.5 h-3.5 fill-current transition-colors" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.4 0 2.8 1.1 2.8 2.5V11c.6 0 1.2.6 1.2 1.2v3.5c0 .7-.6 1.3-1.2 1.3H9.2c-.6 0-1.2-.6-1.2-1.3v-3.5c0-.7.6-1.2 1.2-1.2V9.5C9.2 8.1 10.6 7 12 7zm0 1.2c-.8 0-1.5.7-1.5 1.5V11h3V9.7c0-.8-.7-1.5-1.5-1.5z"/>
+                </svg>
+                Sentinel Command Center
+            </a>
+        </div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 relative">
+        <div class="max-w-7xl mx-auto text-center w-full reveal">
+            <div class="mb-8">
+                <span class="inline-block bg-blue-50 text-blue-600 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border border-blue-100">
+                    Vigilancia IT en tiempo real
+                </span>
+            </div>
+
+            <h1 class="hero-title text-slate-900 mb-12">
+                Auditamos con <span class="text-accent font-black">precisión</span> <br>
+                el <span class="text-accent font-black">hardware</span> de su empresa.
+            </h1>
+
+            <p class="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto mb-16 font-medium leading-relaxed">
+                Monitoreo activo para asegurar la continuidad operativa de su infraestructura tecnológica
+            </p>
+
+            <div class="mt-12">
+                <a href="#sentinel" class="btn-hero-main uppercase tracking-[0.2em]">
+                    Iniciar Auditoría
+                </a>
+            </div>
+        </div>
+
+        <div class="absolute bottom-10 left-1/2 -translate-x-1/2 text-slate-300 animate-bounce hidden md:block">
+            <i class="fas fa-chevron-down text-xl"></i>
+        </div>
+    </section>
+
+    <!-- NUEVA SECCIÓN: CONOCE SENTINEL COMMAND CENTER (ESTILO 3D) -->
+    <!-- Reducido el padding top de py-32 a pt-20 pb-32 para acercar el título hacia arriba -->
+    <section id="command-center" class="pt-20 pb-32 px-6 bg-[#0B1120] relative overflow-hidden">
+        <!-- Resplandor decorativo de fondo para mayor iluminación -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto relative z-10">
+            
+            <!-- Texto Centrado, Arriba y en Una Sola Línea -->
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-[1.3rem] sm:text-4xl md:text-5xl font-black text-white mb-6 tracking-tighter whitespace-nowrap">
+                    Conoce <span class="text-accent">Sentinel Command Center</span>
+                </h2>
+                <p class="text-slate-400 text-lg md:text-xl font-medium leading-relaxed max-w-4xl mx-auto">
+                    Nuestra plataforma de monitoreo predictivo que analiza la salud de su flota informática <span class="text-accent font-black">24/7</span>. Anticipamos fallos de hardware antes de que ocurran para garantizar la <span class="text-[#10B981] font-bold">continuidad operativa</span> de su empresa.
+                </p>
+            </div>
+
+            <!-- Contenedor 3D de Imágenes -->
+            <div class="relative perspective-1000 preserve-3d w-full h-[400px] sm:h-[500px] md:h-[650px] mx-auto reveal">
+                
+                <!-- Imagen Principal (Dashboard) - Tamaño reducido para no tapar Nexus -->
+                <img src="dashboard.jpg" alt="Dashboard de Sentinel Command Center" 
+                     class="absolute top-4 left-0 right-0 mx-auto w-[85%] md:w-[70%] lg:w-[65%] border border-white/10 img-3d-main object-cover transition-all duration-700 ease-out z-10">
+                
+                <!-- Imagen Secundaria 1 (Gráfico CPU) -->
+                <img src="grafico-cpu.png" alt="Gráfico de Tendencia CPU" 
+                     class="absolute bottom-12 left-2 md:left-12 w-[50%] md:w-[38%] border border-white/10 img-3d-overlay object-cover transition-all duration-700 ease-out z-20">
+
+                <!-- Imagen Secundaria 2 (NUEVA: Nexus) superpuesta al lado derecho -->
+                <img src="nexus-stats.jpg" alt="Métricas Nexus" 
+                     class="absolute -bottom-2 right-2 md:right-12 w-[50%] md:w-[38%] border border-white/10 img-3d-overlay object-cover transition-all duration-700 ease-out z-30">
+                     
+            </div>
+
+        </div>
+    </section>
+
+    <!-- SECCIÓN SENTINEL -->
+    <section id="sentinel" class="pt-24 pb-32 px-6 bg-slate-50">
+        <div class="max-w-7xl mx-auto">
+            <!-- Reducido el margen inferior de mb-24 a mb-14 para acercar los recuadros al texto -->
+            <div class="text-center mb-14 reveal">
+                <h2 class="text-3xl md:text-5xl font-black text-slate-900 mb-8 tracking-tighter">Auditoría remota de <span class="text-accent">alta precisión</span></h2>
+                <p class="text-slate-500 text-xl max-w-3xl mx-auto font-medium">
+                    El software Sentinel captura métricas de integridad física profunda, invisibles para los diagnósticos convencionales, enviando los datos automáticamente a Sentinel Command Center para análisis.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 reveal">
+                
+                <!-- Sentinel Flash -->
+                <div class="sentinel-card p-12 flex flex-col items-center text-center relative overflow-hidden hover:border-[#F59E0B] hover:shadow-2xl hover:shadow-[#F59E0B]/10">
+                    <div class="mb-8">
+                        <span class="bg-[#F59E0B]/10 text-[#F59E0B] px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Auditoría Táctica</span>
+                    </div>
+                    <h3 class="text-5xl font-black mb-8 italic sm:not-italic">Sentinel <span class="text-[#F59E0B]">Flash</span></h3>
+                    <p class="text-slate-600 mb-10 leading-relaxed max-w-md text-sm">
+                        Visión técnica inmediata para diagnósticos quirúrgicos. Sentinel Flash identifica cuellos de botella y riesgos físicos, revelando con exactitud qué componentes requieren reemplazo antes de cualquier plan de inversión o renovación.
+                    </p>
+                    <div class="w-full max-w-xs mx-auto text-left">
+                        <ul class="space-y-4 mb-12 text-sm text-slate-500 font-medium">
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Auditoría puntual por 72 horas.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Evaluación de estrés en CPU y RAM.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Diagnóstico de salud de almacenamiento (HDD/SSD).</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Estado y ciclos de batería.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Informe Técnico en PDF.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Licencia temporal.</li>
+                        </ul>
+                    </div>
+                    <a href="acceso.html" class="px-10 py-4 text-center bg-[#F59E0B] text-white rounded-xl font-bold uppercase tracking-widest text-[11px] hover:brightness-110 transition shadow-lg shadow-[#F59E0B]/20 mt-auto">Acceder con Voucher</a>
+                </div>
+
+                <!-- Sentinel Full -->
+                <div class="sentinel-card p-12 flex flex-col items-center text-center border-blue-600/10 shadow-xl shadow-blue-500/5 relative overflow-hidden hover:border-[#10B981] hover:shadow-2xl hover:shadow-[#10B981]/10">
+                    <div class="mb-8">
+                        <span class="bg-[#10B981]/10 text-[#10B981] px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Monitoreo Permanente</span>
+                    </div>
+                    <h3 class="text-5xl font-black mb-8">Sentinel <span class="text-[#10B981]">Full</span></h3>
+                    
+                    <p class="text-slate-600 mb-10 leading-relaxed max-w-md text-sm">
+                        La solución definitiva para la estabilidad operativa. Sentinel Full actúa como un sistema de protección técnica continua, proporcionando inteligencia predictiva que detecta anomalías térmicas y mecánicas antes de que impacten en la productividad de su negocio.
+                    </p>
+                    
+                    <div class="w-full max-w-xs mx-auto text-left">
+                        <ul class="space-y-3 mb-10 text-sm text-slate-500 font-medium flex flex-col items-start">
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Monitoreo residente 24/7.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Telemetría de alta frecuencia (cada 5 min).</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Alertas preventivas de fatiga.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Análisis termodinámico.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Seguimiento salud S.M.A.R.T.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Auditoría de periféricos.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Histórico de estabilidad.</li>
+                            <li class="py-2 px-3 -ml-3 bg-emerald-50/50 border border-emerald-200/50 rounded-lg text-emerald-700 font-bold flex items-center w-fit">
+                                <i class="fas fa-certificate text-emerald-500 mr-2 text-center"></i>
+                                <span>Sentinel Command Center</span>
+                            </li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Soporte técnico preferencial.</li>
+                            <li><i class="fas fa-check-circle feature-check" style="color: #10B981;"></i> Licencia permanente.</li>
+                        </ul>
+                    </div>
+                    <a href="acceso.html" class="px-10 py-4 text-center bg-[#10B981] text-white rounded-xl font-bold uppercase tracking-widest text-[11px] hover:brightness-110 transition shadow-lg shadow-[#10B981]/20 mt-auto">Acceder con Voucher</a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- SECCIÓN: LA AUDITORÍA 360 -->
+    <section id="metodo" class="py-32 px-6 bg-[#0B1120] text-white">
+        <div class="max-w-7xl mx-auto text-center">
+            <div class="reveal mb-20">
+                <h2 class="text-4xl md:text-6xl font-black mb-8 tracking-tighter">La Auditoría <span class="text-blue-500">360</span></h2>
+                <p class="text-slate-400 text-lg max-w-3xl mx-auto font-medium leading-relaxed">
+                    Nuestra metodología combina la potencia de Sentinel con el análisis experto de hardware para eliminar el azar de su presupuesto IT.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 reveal">
+                <div class="p-12 bg-[#161D2F] rounded-[32px] border border-white/5 flex flex-col items-center justify-center group hover:bg-[#1C253B] hover:border-blue-400 hover:-translate-y-2 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-400/10">
+                    <div class="text-3xl md:text-4xl font-black mb-4 bg-gradient-to-br from-blue-400 to-purple-500 bg-clip-text text-transparent italic px-2">24/7</div>
+                    <h4 class="font-bold text-xl mb-2">Reporte Vivo</h4>
+                    <p class="text-slate-500 text-sm">Monitoreo constante de recursos críticos.</p>
+                </div>
+                <div class="p-12 bg-[#161D2F] rounded-[32px] border border-white/5 flex flex-col items-center justify-center group hover:bg-[#1C253B] hover:border-emerald-400 hover:-translate-y-2 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-400/10">
+                    <div class="flex gap-4 text-4xl mb-4 text-emerald-400 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <i class="fab fa-windows"></i>
+                        <i class="fab fa-apple"></i>
+                    </div>
+                    <h4 class="font-bold text-xl mb-2">Multiplataforma</h4>
+                    <p class="text-slate-500 text-sm">Compatible con Windows y Mac.</p>
+                </div>
+                <div class="p-12 bg-[#161D2F] rounded-[32px] border border-white/5 flex flex-col items-center justify-center group hover:bg-[#1C253B] hover:border-purple-400 hover:-translate-y-2 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-400/10">
+                    <div class="text-3xl md:text-4xl font-black mb-4 text-purple-400 uppercase tracking-tight">Predictivo</div>
+                    <h4 class="font-bold text-xl mb-2">Anticipación</h4>
+                    <p class="text-slate-500 text-sm">Detectamos fallas antes de que ocurran.</p>
+                </div>
+                <div class="p-12 bg-[#161D2F] rounded-[32px] border border-white/5 flex flex-col items-center justify-center group hover:bg-[#1C253B] hover:border-orange-500 hover:-translate-y-2 transition-all duration-300 hover:shadow-2xl hover:shadow-orange-500/10">
+                    <div class="text-3xl md:text-4xl font-black mb-4 text-orange-500 italic px-2">100%</div>
+                    <h4 class="font-bold text-xl mb-2">Precisión</h4>
+                    <p class="text-slate-500 text-sm">Diagnóstico real de vida útil.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECCIÓN: PACKS DE MODERNIZACIÓN -->
+    <section id="packs" class="py-32 px-6 bg-white">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-20 reveal">
+                <h2 class="text-4xl md:text-6xl font-black text-slate-900 mb-10 tracking-tighter">Packs de <span class="text-blue-600">Modernización</span></h2>
+                <p class="text-slate-500 text-lg max-w-4xl mx-auto font-medium leading-relaxed">
+                    Tras el diagnóstico avanzado de nuestro <span class="text-blue-600 font-bold">Software Sentinel</span>, le recomendaremos el pack de modernización óptimo para recuperar la agilidad y productividad de sus terminales IT.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-10 reveal">
+                <div class="p-14 rounded-[48px] border border-blue-50 bg-white flex flex-col hover:border-blue-600 hover:shadow-2xl hover:-translate-y-2 transition-all duration-300">
+                    <div class="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center text-xl mb-8">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h4 class="text-2xl font-black mb-6">Pack Performance</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed">Eliminamos cuellos de botella para recuperar la velocidad de respuesta inmediata en flujos de trabajo administrativos.</p>
+                </div>
+                <div class="p-14 rounded-[48px] border border-emerald-50 bg-white flex flex-col hover:border-emerald-500 hover:shadow-2xl hover:-translate-y-2 transition-all duration-300">
+                    <div class="w-12 h-12 bg-emerald-500 text-white rounded-xl flex items-center justify-center text-xl mb-8">
+                        <i class="fas fa-battery-half"></i>
+                    </div>
+                    <h4 class="text-2xl font-black mb-6">Pack Mobility</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed">Aseguramos la autonomía y estabilidad de su fuerza remota mediante la renovación de componentes críticos de energía y red.</p>
+                </div>
+                <div class="p-14 rounded-[48px] border border-purple-50 bg-white flex flex-col hover:border-purple-600 hover:shadow-2xl hover:-translate-y-2 transition-all duration-300">
+                    <div class="w-12 h-12 bg-purple-600 text-white rounded-xl flex items-center justify-center text-xl mb-8">
+                        <i class="fas fa-desktop"></i>
+                    </div>
+                    <h4 class="text-2xl font-black mb-6">Pack Power</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed">Escalamos la potencia de hardware al límite técnico para procesos de alta exigencia, diseño y análisis de datos masivos.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER/CONTACTO -->
+    <footer id="contacto" class="bg-slate-900 text-white pt-32 pb-16 px-6">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 mb-24">
+                <div>
+                    <h2 class="text-4xl md:text-5xl font-black mb-10 leading-tight">
+                        ¿Desea <span class="text-accent font-black">asegurar</span> la <br> 
+                        continuidad de su <span class="text-accent font-black">operación</span>?
+                    </h2>
+                    <p class="text-slate-400 mb-12 text-lg">Iniciemos un diagnóstico técnico preventivo para garantizar la estabilidad de su flota.</p>
+                    <div class="flex flex-col sm:flex-row gap-8">
+                        <a href="mailto:contacto@global365.cl" class="flex items-center gap-4 bg-white/5 p-8 rounded-2xl border border-white/5 hover:border-blue-500 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300 hover:shadow-[0_0_25px_rgba(0,102,255,0.15)]">
+                            <i class="fas fa-envelope text-blue-500 text-xl"></i>
+                            <span class="font-bold">contacto@global365.cl</span>
+                        </a>
+                        <a href="https://wa.me/56964827194" class="flex items-center gap-4 bg-white/5 p-8 rounded-2xl border border-white/5 hover:border-emerald-500 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300 hover:shadow-[0_0_25px_rgba(16,185,129,0.15)]">
+                            <i class="fab fa-whatsapp text-emerald-500 text-xl"></i>
+                            <span class="font-bold">+56 9 6482 7194</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-12 text-sm">
+                    <div>
+                        <h5 class="font-black uppercase tracking-widest text-[10px] text-blue-500 mb-10">Servicios</h5>
+                        <ul class="space-y-6 text-slate-400">
+                            <li><a href="#sentinel" class="hover:text-white transition">Auditoría Sentinel</a></li>
+                            <li><a href="#packs" class="hover:text-white transition">Modernización B2B</a></li>
+                            <li><a href="#" class="hover:text-white transition">Soporte Estratégico</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h5 class="font-black uppercase tracking-widest text-[10px] text-blue-500 mb-10">Ubicación</h5>
+                        <p class="text-slate-400">Viña del Mar, Chile<br>Operaciones Remotas 24/7</p>
+                    </div>
+                    <div>
+                        <h5 class="font-black uppercase tracking-widest text-[10px] text-blue-500 mb-10">Legal</h5>
+                        <ul class="space-y-6 text-slate-400">
+                            <li><a href="#" class="hover:text-white transition">Privacidad</a></li>
+                            <li><a href="#" class="hover:text-white transition">Términos</a></li>
+                            <li><a href="#" class="hover:text-white transition">Cookies</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="pt-16 border-t border-white/5 flex flex-col items-center gap-10 text-center">
+                <div class="flex items-center gap-8">
+                    <img src="logo.png" alt="GLOBAL365 Logo" class="h-12 w-auto">
+                    <a href="#" class="text-slate-500 hover:text-blue-500 transition text-2xl"><i class="fab fa-linkedin"></i></a>
+                </div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.4em]">© 2026 GLOBAL365. PRECISION SURVEILLANCE.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const nav = document.getElementById('mainNav');
+        
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 20) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        const observerOptions = { threshold: 0.1 };
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    e.preventDefault();
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

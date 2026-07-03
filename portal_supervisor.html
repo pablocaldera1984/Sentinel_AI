@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html class="dark" lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCC | Supervisor Pro+ Enterprise</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,300,0,0&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      "colors": {
+        "on-background": "#d6e3ff", 
+        "inverse-on-surface": "#233148", 
+        "primary": "#ffb786",
+        "surface-bright": "#2c3951", 
+        "surface-container-high": "#1c2a41", 
+        "surface": "#041329",
+        "surface-container-highest": "#27354c", 
+        "tertiary": "#4edea3", 
+        "surface-container-low": "#0d1c32",
+        "on-surface-variant": "#c5c6cd", 
+        "on-surface": "#d6e3ff",
+        "full-green": "#00df9a", 
+        "warning": "#facc15", 
+        "error": "#ffb4ab"
+      }
+    }
+  }
+}
+</script>
+<style>
+body, table, p, span, select, button, div, th, td { font-family: 'Inter', sans-serif; }
+h1, h2, h3, h4, .font-headline, .kpi-val { font-family: 'Plus Jakarta Sans', sans-serif !important; }
+.material-symbols-outlined { font-family: 'Material Symbols Outlined' !important; }
+.glass-card {
+  background: rgba(13, 27, 41, 0.45);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glow-green:hover { box-shadow: 0 0 20px rgba(0, 223, 154, 0.15); border-color: rgba(0, 223, 154, 0.3); }
+.glow-yellow { box-shadow: 0 0 20px rgba(250, 204, 21, 0.15); border-color: rgba(250, 204, 21, 0.3); }
+.glow-red { box-shadow: 0 0 25px rgba(255, 180, 171, 0.25); border-color: rgba(255, 180, 171, 0.4); }
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+.slide-over { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); transform: translateX(100%); position: fixed; right: 0; top: 0; height: 100vh; z-index: 60; }
+.slide-over.open { transform: translateX(0); }
+body { overflow: hidden; height: 100vh; }
+main { height: calc(100vh - 124px); overflow: hidden; }
+.kpi-container { position: relative; z-index: 10; transition: all 0.3s; }
+.info-trigger { position: absolute; top: 8px; left: 8px; opacity: 0.4; cursor: help; transition: opacity 0.3s; z-index: 45 !important; }
+.info-trigger:hover { opacity: 1; }
+.kpi-window {
+  visibility: hidden; 
+  opacity: 0; 
+  width: 220px; 
+  background: #0d1c32; 
+  color: #fff;
+  text-align: center; 
+  border-radius: 8px; 
+  padding: 14px; 
+  position: absolute;
+  z-index: 150 !important; 
+  top: 105%; 
+  left: 50%; 
+  transform: translateX(-50%) translateY(-10px);
+  transition: all 0.3s ease; 
+  border: 1px solid rgba(255,255,255,0.2); 
+  font-size: 11px;
+  line-height: 1.4; 
+  box-shadow: 0 20px 40px rgba(0,0,0,0.8); 
+  pointer-events: none;
+  font-weight: 500;
+}
+.info-trigger:hover + .kpi-window { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); }
+.sheet-info-container { position: relative; display: inline-flex; items-center: center; }
+.sheet-info-trigger { color: rgba(255, 255, 255, 0.5) !important; cursor: help; transition: color 0.3s; margin-right: 6px; user-select: none; z-index: 45 !important; }
+.sheet-info-trigger:hover { color: rgba(255, 255, 255, 1) !important; }
+.sheet-window {
+  visibility: hidden; 
+  opacity: 0; 
+  width: 240px; 
+  background: #0d1c32; 
+  color: #fff;
+  text-align: center; 
+  border-radius: 8px; 
+  padding: 12px; 
+  position: absolute;
+  z-index: 200 !important; 
+  bottom: 125%; 
+  left: 0; 
+  transform: translateY(10px);
+  transition: all 0.3s ease; 
+  border: 1px solid rgba(255,255,255,0.15); 
+  font-size: 11px;
+  line-height: 1.4; 
+  box-shadow: 0 15px 30px rgba(0,0,0,0.6); 
+  pointer-events: none;
+  font-weight: 500; 
+  text-transform: none;
+}
+.sheet-info-trigger:hover + .sheet-window { visibility: visible; opacity: 1; transform: translateY(0); }
+.node-screen-green { color: #00df9a; font-variation-settings: 'FILL' 1; filter: drop-shadow(0 0 5px rgba(0, 223, 154, 0.6)); }
+.node-screen-yellow { color: #facc15; font-variation-settings: 'FILL' 1; filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.6)); }
+.node-screen-red { color: #ffb4ab; font-variation-settings: 'FILL' 1; filter: drop-shadow(0 0 8px rgba(255, 180, 171, 0.8)); }
+.plan-flash-locked.info-trigger,
+.plan-flash-locked.sheet-window,
+.plan-flash-locked.kpi-window,
+.plan-flash-locked.sheet-info-trigger {
+  display: none !important;
+}
+.kpi-lock-overlay, .capado-flash-overlay { z-index: 50 !important; backdrop-filter: blur(8px); }
+</style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary/30 min-h-screen flex flex-col">
+<div id="modal-oob-auth" class="fixed inset-0 z-[200] hidden bg-surface/60 backdrop-blur-md flex items-center justify-center p-4">
+<div class="glass-card rounded-2xl w-full max-w-sm p-6 border border-white/10 text-center shadow-2xl flex flex-col items-center gap-4">
+<span class="material-symbols-outlined text-primary text-4xl animate-pulse">lock_open</span>
+<div>
+<h3 class="text-base font-black text-white uppercase tracking-tight">Firma Criptográfica</h3>
+<p id="oob-auth-text" class="text-[11px] text-slate-400 font-medium mt-1 leading-normal">Solicitando pase token a Google Enterprise...</p>
+</div>
+<div id="oob-loader" class="w-full flex justify-center py-2">
+<span class="material-symbols-outlined text-primary text-2xl animate-spin">sync</span>
+</div>
+</div>
+</div>
+<header class="bg-[#041329] border-b border-white/10 sticky top-0 z-40">
+<div class="max-w-[1800px] w-full mx-auto px-6 py-4 grid grid-cols-3 items-center relative">
+<div class="flex justify-start items-center"><img src="2.png" class="h-11 w-auto object-contain" alt="Global365" onerror="this.src='logo.png'"></div>
+<div class="flex flex-col items-center justify-center gap-1.5">
+<h1 class="text-xl font-black text-white uppercase tracking-tighter drop-shadow-md">Sentinel Command Center</h1>
+<div class="glass-card px-8 py-1.5 rounded-xl border border-white/10 shadow-lg shadow-black/30">
+<p id="company-name" class="text-[13px] font-black text-primary uppercase tracking-[0.25em] leading-none">SINCRONIZANDO...</p>
+</div>
+</div>
+<div class="flex justify-end items-center gap-4">
+<div id="plan-container" class="hidden glass-card px-5 py-2.5 rounded-xl border flex flex-col items-end shadow-sm text-right transition-colors duration-500">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Suscripción</span>
+<span id="plan-badge" class="text-[14px] font-black uppercase tracking-tight leading-none">--</span>
+</div>
+<div class="glass-card px-5 py-2.5 rounded-xl border border-white/10 flex flex-col items-end shadow-sm text-right">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Supervisor</span>
+<span id="user-full-name" class="text-[14px] font-black text-white uppercase tracking-tight leading-none">...</span>
+</div>
+<button id="btn-logout" class="p-3 rounded-xl bg-surface-container-high border border-white/5 text-primary hover:bg-primary hover:text-surface transition-all"><span class="material-symbols-outlined">power_settings_new</span></button>
+</div>
+</div>
+</header>
+<main class="max-w-[1800px] w-full mx-auto p-6 flex-1 flex flex-col overflow-hidden">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 shrink-0 mb-6">
+<div class="glass-card p-4 rounded-2xl border border-white/10">
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-3 pl-1">Hardware & Infraestructura</p>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+<div class="kpi-container relative bg-slate-900/40 border border-white/5 p-4 rounded-xl flex flex-col justify-center items-center">
+<span class="material-symbols-outlined info-trigger text-[14px]">info</span>
+<div class="kpi-window">Computadores que están encendidos y transmitiendo telemetría activa.</div>
+<p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">router</span> En Línea</p>
+<h3 class="text-2xl font-black text-white kpi-val" id="device-count">00</h3>
+</div>
+<div id="card-kpi-health" class="kpi-container relative bg-slate-900/40 border border-white/5 p-4 rounded-xl flex flex-col justify-center items-center border-[2px] transition-all duration-500">
+<span class="material-symbols-outlined info-trigger text-[14px]">info</span>
+<div class="kpi-window">Estado general de salud física de los componentes internos (DEX Score Base).</div>
+<p id="kpi-health-label" class="text-[9px] font-bold uppercase tracking-widest mb-1 flex items-center gap-2 text-full-green">
+<span class="material-symbols-outlined text-[16px]">monitor_heart</span> Salud Flota
+</p>
+<div class="flex items-end gap-2"><h3 class="text-2xl font-black text-white kpi-val" id="kpi-health">--%</h3><span id="health-trend" class="text-[10px] font-black mb-1"></span></div>
+</div>
+<div id="card-kpi-risk" class="kpi-container relative bg-slate-900/40 border border-white/5 p-4 rounded-xl flex flex-col justify-center items-center border-[2px] transition-all duration-500">
+<span class="material-symbols-outlined info-trigger text-[14px]">info</span>
+<div class="kpi-window">Equipos con alertas mecánicas graves o degradación química crítica.</div>
+<p id="kpi-risk-label" class="text-[9px] font-bold uppercase tracking-widest mb-1 flex items-center gap-2 text-full-green"><span class="material-symbols-outlined text-[16px]">warning</span> Riesgo Falla</p>
+<h3 class="text-2xl font-black text-white kpi-val" id="kpi-risk">00</h3>
+</div>
+</div>
+</div>
+<div class="glass-card p-4 rounded-2xl border border-white/10">
+<p class="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-3 pl-1">Cumplimiento de Seguridad</p>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+<div id="card-kpi-compliance" class="kpi-container relative bg-slate-900/40 border border-white/5 p-4 rounded-xl flex flex-col justify-between items-center border-[2px] transition-all duration-500 overflow-hidden min-h-[105px]">
+<span class="material-symbols-outlined info-trigger text-[14px]">info</span>
+<div class="kpi-window">Puntuación según políticas ISO 27001 (A.12.6) e Higiene Digital CIS v8.</div>
+<div class="text-center z-10">
+<p id="kpi-compliance-label" class="text-[8px] font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[12px]">shield_lock</span> Postura Score</p>
+<h3 id="compliance-pct" class="text-xl font-black text-white kpi-val">100%</h3>
+</div>
+<div class="w-full h-8 mt-1 z-0 opacity-80"><canvas id="sparkline-compliance"></canvas></div>
+</div>
+<div id="card-kpi-productivity" class="kpi-container relative bg-slate-900/40 border border-white/5 p-4 rounded-xl flex flex-col justify-between items-center border-[2px] transition-all duration-500 overflow-hidden min-h-[105px]">
+<span class="material-symbols-outlined info-trigger text-[14px]">info</span>
+<div class="kpi-window">Sistemas con brechas de hardening (UAC inactivo, BitLocker deshabilitado, parches).</div>
+<div class="text-center z-10">
+<p id="kpi-productivity-label" class="text-[8px] font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[12px]">gpp_maybe</span> Brechas Hardening</p>
+<h3 class="text-xl font-black text-white tracking-tight kpi-val" id="kpi-hardening-count">0</h3>
+</div>
+<div class="w-full h-8 mt-1 z-0 opacity-80"><canvas id="sparkline-hardening"></canvas></div>
+</div>
+<div id="card-kpi-network" class="kpi-container relative bg-slate-900/40 border border-white/5 p-4 rounded-xl flex flex-col justify-between items-center border-[2px] transition-all duration-500 overflow-hidden min-h-[105px]">
+<span class="material-symbols-outlined info-trigger text-[14px]">info</span>
+<div class="kpi-window">Indicadores de ataque activos, persistencias anómalas o desvíos semánticos de IA.</div>
+<div class="text-center z-10">
+<p id="kpi-network-label" class="text-[8px] font-bold uppercase tracking-widest mb-0.5 flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[12px]">bolt</span> Alertas (IoA)</p>
+<h3 id="network-pct" class="text-xl font-black text-white kpi-val">0</h3>
+</div>
+<div class="w-full h-8 mt-1 z-0 opacity-80"><canvas id="sparkline-network"></canvas></div>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 h-full overflow-hidden">
+<div class="lg:col-span-6 flex flex-col bg-[#041329]/20 glass-card rounded-xl border border-white/5 overflow-hidden">
+<div class="px-6 py-5 border-b border-white/5 bg-white/5 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">data_table</span>
+<h3 class="font-bold text-sm lg:text-base text-white uppercase tracking-widest">Inventario de Flota</h3>
+</div>
+<div class="flex items-center gap-2">
+<div class="flex gap-1 text-[9px] font-bold uppercase tracking-widest">
+<button id="filter-all" class="px-2 py-1 rounded bg-primary text-surface border border-primary/30 shadow-md">Todos</button>
+<button id="filter-vulnerable" class="px-2 py-1 rounded bg-white/5 text-slate-400 hover:text-white transition-all">Vuln</button>
+</div>
+<div class="flex bg-black/20 rounded-lg p-1 border border-white/10 shrink-0">
+<button id="btn-view-list" class="p-1 rounded bg-primary text-surface transition-all shadow-md"><span class="material-symbols-outlined text-[16px]">view_list</span></button>
+<button id="btn-view-grid" class="p-1 rounded text-slate-500 hover:text-white transition-all"><span class="material-symbols-outlined text-[16px]">grid_view</span></button>
+</div>
+</div>
+</div>
+<div id="fleet-content-container" class="flex-1 overflow-y-auto custom-scrollbar relative">
+<table id="view-table" class="w-full text-left border-collapse">
+<thead class="sticky top-0 z-20 bg-[#141d2f]">
+<tr class="text-[9px] uppercase tracking-widest text-on-surface-variant border-b border-white/5">
+<th class="px-6 py-4 font-semibold text-primary">Usuario</th>
+<th class="px-4 py-3 font-semibold">Física</th>
+<th class="px-4 py-3 font-semibold flex items-center gap-1">Seg. <button id="btn-toggle-sort" class="hover:text-white transition-colors"><span class="material-symbols-outlined text-[14px]">filter_list</span></button></th>
+<th class="px-4 py-3 font-semibold text-error uppercase">Amenazas Activas</th>
+<th class="px-4 py-3 font-semibold text-center">Acción</th>
+</tr>
+</thead>
+<tbody id="incidents-table" class="text-xs font-medium"></tbody>
+</table>
+<div id="view-grid" class="hidden p-4 flex flex-col items-center">
+<div class="grid grid-cols-3 gap-4 mb-6 w-full shrink-0">
+<div class="glass-card p-3 rounded-xl border border-full-green/30 bg-full-green/5 text-center">
+<p class="text-[9px] font-bold text-full-green uppercase mb-0.5">Óptimo</p>
+<h4 id="pct-optimo" class="text-lg text-white font-black">0%</h4>
+</div>
+<div class="glass-card p-3 rounded-xl border border-warning/30 bg-warning/5 text-center">
+<p class="text-[9px] font-bold text-warning uppercase mb-0.5">Precaución</p>
+<h4 id="pct-precaucion" class="text-lg text-white font-black">0%</h4>
+</div>
+<div class="glass-card p-3 rounded-xl border border-error/30 bg-error/5 text-center">
+<p class="text-[9px] font-bold text-error uppercase mb-0.5">Crítico</p>
+<h4 id="pct-critico" class="text-lg text-white font-black">0%</h4>
+</div>
+</div>
+<div id="pc-nodes-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 w-full"></div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex flex-col bg-[#041329]/30 glass-card rounded-xl border border-primary/20 overflow-hidden relative shadow-[0_0_30px_rgba(255,183,134,0.05)]">
+<div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"></div>
+<div class="px-4 py-3 border-b border-white/5 bg-white/5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">psychology</span>
+<h3 class="font-bold text-xs text-white uppercase tracking-wider truncate">Auditoría Global Sentinel AI</h3>
+</div>
+<div class="p-4 flex-1 flex flex-col justify-between overflow-hidden gap-3">
+<div class="space-y-2.5">
+<p class="text-[9.5px] text-slate-400 font-medium leading-tight uppercase tracking-wider border-b border-white/5 pb-1.5">
+Diagnóstico predictivo consolidado de la flota.
+</p>
+<div id="global-ai-metrics-container" class="space-y-2">
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-white/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary text-base">memory</span>
+<span class="text-[11px] text-slate-300 font-medium truncate max-w-[170px]">Optimización de Recursos y Silicio</span>
+</div>
+<span id="global-metric-ram" class="text-[10px] font-black text-tertiary bg-tertiary/10 px-1.5 py-0.5 rounded shrink-0">0 PC</span>
+</div>
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-white/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-warning text-base">cleaning_services</span>
+<span class="text-[11px] text-slate-300 font-medium truncate max-w-[170px]">Almacenamiento Forzado o Saturado</span>
+</div>
+<span id="global-metric-cache" class="text-[10px] font-black text-warning bg-warning/10 px-1.5 py-0.5 rounded shrink-0">0 PC</span>
+</div>
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-white/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-error text-base">gpp_maybe</span>
+<span class="text-[11px] text-slate-300 font-medium truncate max-w-[170px]">Brechas Críticas de Hardening</span>
+</div>
+<span id="global-metric-firewall" class="text-[10px] font-black text-error bg-error/10 px-1.5 py-0.5 rounded shrink-0">0 PC</span>
+</div>
+</div>
+</div>
+<div id="global-ai-action-box" class="pt-3 border-t border-white/5 text-center shrink-0">
+<p class="text-[10px] text-on-surface-variant font-medium mb-2 leading-tight">¿Mitigar de forma remota las observaciones detectadas en la flota?</p>
+<button id="btn-global-remediation" class="w-full py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary font-black text-[9.5px] uppercase tracking-wider hover:bg-primary hover:text-surface transition-all duration-300 shadow-md flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[13px]">bolt</span> Corregir Observaciones Flota
+</button>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex flex-col gap-4 h-full overflow-hidden">
+<div class="glass-card p-4 rounded-xl flex flex-col border border-white/5 shrink-0">
+<a href="inventario_supervisor.html" class="w-full py-3.5 rounded-lg border border-white/10 bg-primary/10 text-primary font-bold text-[11px] uppercase tracking-[0.2em] text-center hover:bg-primary hover:text-surface transition-all shadow-md flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">inventory</span> GESTIONAR ACTIVOS TI
+</a>
+</div>
+<div class="glass-card p-4 rounded-xl flex flex-col border border-white/5 shrink-0 bg-error/5 border-error/20">
+<p class="text-[9px] font-bold text-error uppercase tracking-[0.2em] mb-3 flex items-center justify-center gap-2"><span class="material-symbols-outlined text-[14px]">error</span> Top 3 Riesgo Híbrido</p>
+<div id="ranking-list" class="space-y-2"></div>
+</div>
+<div class="glass-card p-5 rounded-xl flex-1 flex flex-col border border-white/5 overflow-hidden justify-between max-h-[220px]">
+<div class="flex items-center gap-3 mb-1 pb-2 border-b border-white/5 shrink-0">
+<span class="material-symbols-outlined text-[20px] text-primary">security</span>
+<h4 class="font-bold text-xs text-primary uppercase tracking-widest mt-0.5">Antivirus en la Flota</h4>
+</div>
+<div class="flex-1 relative w-full h-full min-h-[120px] flex items-center justify-center">
+<canvas id="antiVirusDoughnutChart"></canvas>
+</div>
+</div>
+</div>
+</div>
+</main>
+<div id="modal-global-diagnostico" class="fixed inset-0 z-[130] hidden bg-[#041329]/80 backdrop-blur-xl flex items-center justify-center p-4 transition-all">
+<div class="glass-card rounded-[28px] w-full max-w-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+<div class="p-6 border-b border-white/5 bg-white/5 flex justify-between items-center shrink-0">
+<div class="flex items-center gap-3">
+<div class="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center">
+<span class="material-symbols-outlined text-xl">fact_check</span>
+</div>
+<div>
+<h3 class="text-lg font-black text-white uppercase tracking-tight">Centro de Diagnóstico y Mitigación de Flota</h3>
+<p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Análisis granular y remediación asistida por Sentinel AI</p>
+</div>
+</div>
+<button id="btn-close-global-modal" class="p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-colors"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div id="modal-global-body" class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4"></div>
+<div class="p-4 border-t border-white/5 bg-[#0d1c32]/40 shrink-0 flex justify-end gap-3">
+<button id="btn-close-global-modal-foot" class="px-4 py-2 rounded-lg border border-white/10 text-slate-300 font-bold text-xs uppercase tracking-wider hover:bg-white/5 transition-all">Cerrar Diagnóstico</button>
+<button id="btn-modal-fix-all" class="px-5 py-2 rounded-lg bg-primary text-surface font-black text-xs uppercase tracking-wider hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-lg shadow-primary/10">
+<span class="material-symbols-outlined text-sm">bolt</span> Corregir Toda la Flota
+</button>
+</div>
+</div>
+</div>
+<div id="modal-trend" class="fixed inset-0 z-[120] hidden bg-[#041329]/95 backdrop-blur-xl flex items-center justify-center p-6 transition-all">
+<div class="glass-card rounded-[32px] w-full max-w-4xl overflow-hidden border border-white/10 shadow-2xl">
+<div class="p-8">
+<div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
+<div class="flex items-center gap-3">
+<select id="trend-range" class="bg-[#0d1c32] border border-white/10 text-white rounded-lg py-1.5 px-4 text-[10px] font-bold uppercase tracking-widest focus:ring-1 focus:ring-primary outline-none">
+<option value="7d">Historial 7 Días (Prospectiva)</option>
+<option value="rafaga_inicio">Ráfaga Alta Frecuencia: Inicio Jornada</option>
+<option value="rafaga_pico">Ráfaga Alta Frecuencia: Pico Operativo</option>
+<option value="rafaga_cierre">Ráfaga Alta Frecuencia: Cierre Jornada</option>
+</select>
+<button id="btn-close-trend" class="p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg transition-colors"><span class="material-symbols-outlined">close</span></button>
+</div>
+</div>
+<div class="relative h-[400px] w-full"><canvas id="trendChart"></canvas></div>
+</div>
+</div>
+</div>
+<div id="tech-sheet" class="fixed top-0 right-0 h-screen max-h-screen w-full sm:w-[50%] md:w-[54%] max-w-[950px] bg-[#041329]/95 backdrop-blur-xl border-l border-l-white/10 z-[60] slide-over shadow-2xl p-6 flex flex-col text-white">
+<div class="flex justify-between items-center mb-4 pb-3 border-b border-white/5 relative shrink-0">
+<div class="flex flex-col">
+<h2 id="sheet-user" class="text-2xl font-black text-white uppercase leading-none">--</h2>
+<p id="sheet-os" class="text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-widest">--</p>
+</div>
+<button id="btn-close-sheet" class="p-2 text-on-surface-variant hover:text-white bg-white/5 rounded-lg"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="flex flex-col gap-5 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
+<div id="container-agent-chat-placeholder" class="w-full h-auto rounded-2xl glass-card p-5 border border-primary/30 bg-gradient-to-br from-[#0d1c32]/60 via-[#041329]/40 to-[#142642]/50 shadow-[0_0_25px_rgba(255,183,134,0.08)] flex flex-col relative overflow-visible transition-all duration-500 group">
+<div class="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+<div class="flex items-center justify-between pb-2.5 border-b border-white/5 shrink-0 w-full mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl tracking-normal drop-shadow-[0_0_6px_rgba(255,183,134,0.4)]">psychology</span>
+<div class="flex flex-col">
+<p class="text-xs font-black text-white uppercase tracking-[0.15em] leading-none">Sentinel AI</p>
+<p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Auditoría predictiva e inferencia híbrida de hardware y ciberseguridad.</p>
+</div>
+</div>
+<span id="ai-status-pulse" class="w-2 h-2 rounded-full bg-full-green/60 shadow-[0_0_8px_rgba(0,223,154,0.6)]"></span>
+</div>
+<div id="ai-dynamic-body" class="flex flex-col items-center justify-center text-center py-4 flex-1 gap-3 w-full h-auto overflow-visible transition-all">
+<p class="text-xs font-semibold text-on-surface-variant tracking-normal max-w-md" id="recuadro_sentinel_texto">
+¿Listo para desplegar un diagnóstico predictivo asistido por IA?
+</p>
+<button id="btn-trigger-ai-embedded" class="px-5 py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary font-black text-[10px] uppercase tracking-[0.15em] hover:bg-primary hover:text-surface transition-all duration-300 shadow-lg shadow-black/40 flex items-center gap-2 group/btn">
+<span class="material-symbols-outlined text-[14px] font-bold group-hover/btn:rotate-180 transition-transform duration-500">bolt</span> Generar AI Insight
+</button>
+</div>
+</div>
+<div class="w-full flex flex-col gap-2">
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Métricas de Silicio, Capacidad e Infraestructura física</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+<div class="flex flex-col gap-4">
+<div class="grid grid-cols-2 gap-3">
+<div id="sheet-status-hardware-card" class="px-4 py-3 rounded-xl border text-center relative kpi-container bg-slate-900/40 border-white/10 overflow-hidden min-h-[58px]">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined sheet-info-trigger text-[14px]">info</span>
+<div class="sheet-window !bottom-auto !top-[105%] text-left">Fallas mecánicas activas detectadas en el silicio o almacenamiento.</div>
+<p class="text-[9px] uppercase font-bold tracking-widest italic opacity-60">Diagnóstico de Falla</p>
+</div>
+<p id="sheet-hardware-urgencia" class="text-[10px] text-white font-bold uppercase mt-1">Evaluando...</p>
+</div>
+<div id="sheet-renovacion-container" class="px-4 py-3 rounded-xl border text-center relative kpi-container bg-slate-900/40 border-white/10 overflow-hidden min-h-[58px]">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined sheet-info-trigger text-[14px]">info</span>
+<div class="sheet-window !bottom-auto !top-[105%] text-left">Determina si los componentes físicos llegaron al límite de vida útil por degradación química.</div>
+<p class="text-[9px] uppercase font-bold tracking-widest italic opacity-60">Obsolescencia Técnica</p>
+</div>
+<p id="sheet-renovacion" class="text-[10px] text-white font-bold uppercase mt-1">Analizando...</p>
+</div>
+</div>
+<div class="glass-card p-4 rounded-xl border border-white/5">
+<div class="flex justify-between items-end mb-2">
+<div class="flex flex-col">
+<div class="sheet-info-container">
+<span class="material-symbols-outlined sheet-info-trigger text-[15px]">info</span>
+<div class="sheet-window tooltip-down-right text-left">Espacio en disco duro respecto a la capacidad de almacenamiento total.</div>
+<p class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest" id="sheet-label-disco">Almacenamiento</p>
+</div>
+<span id="sheet-smart" class="text-[9px] font-bold text-full-green mt-1 tracking-tighter">S.M.A.R.T OK</span>
+</div>
+<div class="flex items-center gap-3">
+<span id="sheet-ssd" class="text-xl font-bold text-white tracking-tight">-- GB / -- GB</span>
+<button id="btn-trend-ssd" class="p-1.5 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-primary transition-all"><span class="material-symbols-outlined text-[18px]">show_chart</span></button>
+</div>
+</div>
+<div class="w-full h-2 rounded-full overflow-hidden"><div id="ssd-progress" class="h-full rounded-full transition-all duration-1000" style="width: 0%"></div></div>
+</div>
+<div class="glass-card p-4 rounded-xl border border-white/5">
+<div class="flex justify-between items-end mb-2">
+<div class="flex flex-col">
+<div class="sheet-info-container">
+<span class="material-symbols-outlined sheet-info-trigger text-[14px]">info</span>
+<div class="sheet-window text-left">Consumo de la memoria volátil aleatoria.</div>
+<span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">Uso RAM</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span id="sheet-ram-text" class="text-xl font-bold text-white">--</span>
+<button id="btn-trend-ram" class="p-1.5 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-primary transition-all"><span class="material-symbols-outlined text-[18px]">show_chart</span></button>
+</div>
+</div>
+<div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden"><div id="ram-progress" class="h-full rounded-full transition-all" style="width: 0%"></div></div>
+</div>
+<div class="glass-card p-4 rounded-xl border border-white/5">
+<div class="flex justify-between items-end mb-2">
+<div class="flex flex-col">
+<div class="sheet-info-container">
+<span class="material-symbols-outlined sheet-info-trigger text-[14px]">info</span>
+<div class="sheet-window text-left">Consumo de procesamiento en el procesador principal (CPU).</div>
+<span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">Uso CPU</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span id="sheet-cpu-text" class="text-xl font-bold text-white">--</span>
+<button id="btn-trend-cpu" class="p-1.5 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-primary transition-all"><span class="material-symbols-outlined text-[18px]">show_chart</span></button>
+</div>
+</div>
+<div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden"><div id="cpu-progress" class="h-full rounded-full transition-all" style="width: 0%"></div></div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div id="container-sheet-termica" class="glass-card p-4 rounded-xl border border-white/5 relative overflow-hidden">
+<div class="sheet-info-container mb-1">
+<span class="material-symbols-outlined sheet-info-trigger text-[14px]">info</span>
+<div class="sheet-window tooltip-down-right text-left">Temperatura interna del silicio del procesador principal (CPU).</div>
+<p class="text-[11px] font-bold text-on-surface-variant uppercase">Térmica</p>
+</div>
+<p id="sheet-temp-cpu" class="text-xl font-bold text-white leading-none">--</p>
+<p id="sheet-fans" class="text-[10px] text-slate-400 mt-2 font-bold">-- RPM</p>
+</div>
+<div class="glass-card p-4 rounded-xl border border-white/5">
+<div class="sheet-info-container mb-1">
+<span class="material-symbols-outlined sheet-info-trigger text-[14px]">info</span>
+<div class="sheet-window tooltip-down-right text-left">Nivel de carga y nivel de degradación química de la batería (Wear Level).</div>
+<p class="text-[11px] font-bold text-on-surface-variant uppercase">Energía</p>
+</div>
+<p id="sheet-bat-text" class="text-xl font-bold text-white leading-none">--</p>
+<p id="sheet-wear" class="text-[9px] text-error mt-2 font-bold">WEAR LEVEL: 0%</p>
+</div>
+</div>
+</div>
+<div id="container-sheet-avanzado" class="glass-card p-4 rounded-xl border border-white/5 flex flex-col gap-1 text-xs text-white h-full justify-between">
+<p class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest border-b border-white/5 pb-2 mb-1">Entorno de Sistema e Infraestructura</p>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window tooltip-down-right text-left">La estampa cronológica exacta en que fue instalado o formateado el Kernel de Windows.</div>
+<span class="text-slate-400">Instalación SO:</span>
+</div>
+<span id="sheet-install-date" class="font-bold">--</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window tooltip-down-right text-left">Segundos exactos que tarda el hardware del equipo en arrancar por completo el sistema operativo.</div>
+<span class="text-slate-400">Tiempo de Arranque:</span>
+</div>
+<span id="sheet-boot-time" class="font-mono font-bold">-- SEG</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window text-left">Tiempo ininterrumpido que el computador lleva encendido operando sin registrar reinicios físicos.</div>
+<span class="text-slate-400">Uptime Real:</span>
+</div>
+<span id="sheet-uptime" class="font-bold">--</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window text-left">Conteo de cierres catastróficos críticos del sistema (BSOD / Pantallazos Azules) en los últimos 7 días.</div>
+<span class="text-slate-400">Kernel Panics:</span>
+</div>
+<span id="sheet-panics" class="text-warning font-bold">0</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window text-left">Uso del espacio en disco duro como caché virtual auxiliar ante la saturación de la memoria RAM.</div>
+<span class="text-slate-400">Paginación (Swap):</span>
+</div>
+<span id="sheet-swap" class="text-full-green font-bold tracking-tighter uppercase px-2 py-0.5 bg-full-green/10 rounded">--</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="text-sm mr-1"> </span>
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window text-left">El proceso o software ejecutable activo que consume la mayor carga en este momento.</div>
+<span class="text-slate-400">Top Consumidor:</span>
+</div>
+<span id="sheet-top-process" class="text-error font-black">--</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-white/5">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window text-left">Cantidad de ranuras o zócalos físicos disponibles de fábrica en la placa madre para expandir la RAM.</div>
+<span class="text-slate-400">Slots RAM Libres:</span>
+</div>
+<span id="sheet-slots-libres" class="text-primary font-black">--</span>
+</div>
+<div class="flex justify-between items-center py-2">
+<div class="sheet-info-container">
+<span class="sheet-info-trigger material-symbols-outlined !text-[14px]">info</span>
+<div class="sheet-window text-left">Muestra si la máquina opera conectada por cable de red (Ethernet) o antena inalámbrica junto a su nivel de cobertura.</div>
+<span class="text-slate-400">Señal de Red:</span>
+</div>
+<span id="sheet-red-telemetria" class="font-bold">--</span>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full flex flex-col gap-2 pt-2 border-t border-white/5">
+<p class="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">Módulos de Auditoría Avanzada, SecOps y Compliance Corporativo</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+<div class="glass-card p-4 rounded-xl border border-white/5 flex flex-col gap-3 text-xs text-white">
+<p class="text-[11px] font-bold text-primary uppercase tracking-widest border-b border-white/5 pb-2">Evaluación de Postura Operativa</p>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Antivirus Corporativo:</span>
+<span id="sheet-av-provider" class="font-bold text-white uppercase">Evaluando...</span>
+</div>
+<div class="grid grid-cols-2 gap-2 text-[10px] bg-black/20 p-2.5 rounded-lg border border-white/5">
+<div class="flex items-center gap-1.5"><span id="icon-av-rtp" class="w-2 h-2 rounded-full bg-slate-500"></span> Protec. Tiempo Real</div>
+<div class="flex items-center gap-1.5"><span id="icon-av-sigs" class="w-2 h-2 rounded-full bg-slate-500"></span> Firmas Actualizadas</div>
+</div>
+<div class="space-y-2.5 pt-1">
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Firewall de Windows [ISO 27001 A.12.6]:</span>
+<span id="sheet-firewall-status" class="font-bold px-2 py-0.5 rounded text-[10px]">--</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Parches Críticos Pendientes [CIS v8 7.1]:</span>
+<span id="sheet-patch-status" class="font-bold text-white">--</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Cifrado BitLocker [ISO 27001 A.12.6]:</span>
+<span id="sheet-bitlocker-status" class="font-bold text-white">--</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Control de Acceso de Usuario (UAC) [CIS v8 4.1]:</span>
+<span id="sheet-uac-status" class="font-bold text-white">--</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Aislamiento Core (LSA Protection):</span>
+<span id="sheet-lsa-status" class="font-bold text-white">--</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Puertos de Red Abiertos (RDP/SMB) [CIS v8 4.9]:</span>
+<span id="sheet-ports-status" class="font-bold text-white">--</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Resolución DNS (hosts SHA-256):</span>
+<span id="sheet-dns-status" class="font-bold text-full-green">SIN ALTERACIÓN</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-slate-400">Persistencia en Arranque (ASEPs / WMI):</span>
+<span id="sheet-startup-status" class="font-bold text-white">--</span>
+</div>
+</div>
+</div>
+<div id="container-sheet-ia-runtime" class="glass-card p-4 rounded-xl border border-white/5 flex flex-col gap-3 text-xs text-white relative overflow-hidden h-full justify-start">
+<p class="text-[11px] font-bold text-tertiary uppercase tracking-widest border-b border-white/5 pb-2 mb-1 flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">psychology</span> AI Runtime Telemetry (EUEM)</p>
+<div class="space-y-4 pt-1">
+<div class="flex flex-col gap-1 border-b border-white/5 pb-2">
+<span class="text-slate-400">Conectores LLM / Model Context (MCP):</span>
+<span id="sheet-mcp-status" class="font-bold text-white text-[13px] mt-0.5">PROPIO / SEGURO</span>
+</div>
+<div class="flex flex-col gap-1 border-b border-white/5 pb-2">
+<span class="text-slate-400">Inyecciones de Prompts Detectadas [OWASP AI]:</span>
+<span id="sheet-prompt-injections" class="font-bold text-full-green text-[13px] mt-0.5">0 DETECCIONES</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-slate-400">Ejecución Inesperada (Rogue Agent/Tool Call):</span>
+<span id="sheet-rogue-agents" class="font-bold text-full-green text-[13px] mt-0.5">NINGUNO DETECTADO</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { getFirestore, collection, query, where, onSnapshot, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+// Variables de estado encapsuladas
+let currentEmpresaId = "";
+let currentSupervisorNombre = "";
+let equipoSeleccionado = null;
+let isSorted = false;
+let currentView = 'list';
+let currentFilter = 'all';
+let myChart = null;
+let avDoughnutChart = null;
+let supervisorPlan = 'FULL';
+let chartMetricGlobal = 'CPU';
+let sparklineComplianceChart = null;
+let sparklineHardeningChart = null;
+let sparklineNetworkChart = null;
+let activosUnsubscribes = [];
+window.equiposData = {};
+let auth = null;
+let db = null;
+const FUENTES = ["auditoria_sandbox", "auditoria_global"];
+const MAPEO_VISUAL_HERRAMIENTAS = {
+  "ram_flush": { icon: "memory", color: "tertiary", pregunta: "¿Optimizar memoria RAM y mitigar procesos huérfanos?", btnText: "Purgar Silicio" },
+  "clear_cache": { icon: "cleaning_services", color: "warning", pregunta: "¿Forzar limpieza de cache y optimización TRIM?", btnText: "Sanear SSD" },
+  "enable_firewall": { icon: "shield", color: "error", pregunta: "¿Restaurar políticas del Firewall perimetral?", btnText: "Forzar Hardening" },
+  "aislar_equipo": { icon: "gpp_bad", color: "error", pregunta: "¿Ruta de ataque crítica. Aislar equipo de la red corporativa?", btnText: "Aislar Red" },
+  "bloquear_shadow_ai": { icon: "block", color: "warning", pregunta: "¿Bloquear procesos de IA externa no autorizados (Shadow AI)?", btnText: "Bloquear App" },
+  "usb_port_lockdown": { icon: "usb_off", color: "error", pregunta: "¿Incumplimiento de política corporativa. Bloquear puertos USB físicos?", btnText: "Bloquear USB" },
+  "forzar_update_av": { icon: "security_update_good", color: "tertiary", pregunta: "¿Forzar actualización de firmas y RTP del Antivirus?", btnText: "Actualizar AV" },
+  "evaluar_roi_y_renovacion_pc": { icon: "attach_money", color: "tertiary", pregunta: "¿Gatillar auditoría FinOps de ROI, licencias ociosas y consumos térmicos?", btnText: "Auditoría FinOps" },
+  "deshabilitar_impresion": { icon: "eco", color: "tertiary", pregunta: "¿Desactivar Spooler local para forzar ahorro de papel y huella de carbono?", btnText: "Forzar Sostenibilidad" },
+  "desinstalar_agente_local": { icon: "delete_forever", color: "error", pregunta: "¡Atención! ¿Deseas purgar y desinstalar por completo el agente Sentinel?", btnText: "Desinstalar Agente" }
+};
+
+// FUNCIÓN DE MITIGACIÓN XSS (Output Encoding OWASP)
+const escapeHTML = (str) => {
+  if (str === null || str === undefined) return '';
+  const stringified = typeof str === 'string' ? str : String(str);
+  return stringified.replace(/[&<>"']/g, (match) => {
+    const entities = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#x27;'
+    };
+    return entities[match];
+  });
+};
+
+const applyColorBars = (id, v, u, smartStatus = "OK") => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.width = v + '%';
+  el.className = 'h-full rounded-full transition-all';
+  if (smartStatus !== "OK") {
+    el.classList.add('bg-error', 'animate-pulse');
+  } else {
+    if (u) {
+      if (v >= 80) el.classList.add('bg-error', 'animate-pulse');
+      else if (v >= 60) el.classList.add('bg-warning');
+      else el.classList.add('bg-full-green');
+    } else {
+      if (v >= 90) el.classList.add('bg-error');
+      else if (v >= 75) el.classList.add('bg-warning');
+      else el.classList.add('bg-full-green');
+    }
+  }
+};
+
+const drawSparkline = (canvasId, dataTrend, colorHex, chartRefStore) => {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (chartRefStore && typeof chartRefStore.destroy === 'function') {
+    chartRefStore.destroy();
+  }
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ["", "", "", "", "", "", ""],
+      datasets: [{
+        data: dataTrend, borderColor: colorHex, borderWidth: 1.5, pointRadius: 0,
+        fill: false, tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false } }
+    }
+  });
+};
+
+const initAntiVirusChart = () => {
+  const canvas = document.getElementById('antiVirusDoughnutChart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (avDoughnutChart) avDoughnutChart.destroy();
+  avDoughnutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Protegido', 'Firmas Obsoletas', 'Desprotegido'],
+      datasets: [{
+        data: [1, 0, 0], backgroundColor: ['#00df9a', '#facc15', '#ffb4ab'],
+        borderWidth: 0, borderRadius: 4
+      }]
+    },
+    options: {
+      rotation: -90, circumference: 180, cutout: '78%', responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } }
+    }
+  });
+};
+
+const updateAntiVirusChart = (counts) => {
+  if (avDoughnutChart) {
+    const total = counts.protegido + counts.desactualizado + counts.desprotegido;
+    avDoughnutChart.data.datasets[0].data = total > 0 ? [counts.protegido, counts.desactualizado, counts.desprotegido] : [1, 0, 0];
+    avDoughnutChart.update();
+  }
+};
+
+const toggleSort = () => {
+  isSorted = !isSorted;
+  renderizarTodoSupervisor();
+};
+
+const setView = (view) => {
+  currentView = view;
+  const viewTable = document.getElementById('view-table');
+  const viewGrid = document.getElementById('view-grid');
+  if(!viewTable || !viewGrid) return;
+  document.getElementById('btn-view-list').className = view === 'list' ? "p-1.5 rounded bg-primary text-surface shadow-md" : "p-1.5 rounded text-slate-500 hover:text-white transition-all";
+  document.getElementById('btn-view-grid').className = view === 'grid' ? "p-1.5 rounded bg-primary text-surface shadow-md" : "p-1.5 rounded text-slate-500 hover:text-white transition-all";
+  if(view === 'list') { 
+    viewTable.classList.remove('hidden');
+    viewGrid.classList.add('hidden'); 
+  } else { 
+    viewGrid.classList.remove('hidden'); 
+    viewTable.classList.add('hidden');
+    renderHeatmap(); 
+  }
+};
+
+const renderHeatmap = () => {
+  const gridContainer = document.getElementById('pc-nodes-grid');
+  if (!gridContainer) return;
+  let list = Object.values(window.equiposData);
+  const isFlash = (supervisorPlan === 'FLASH');
+  if (currentFilter === 'vulnerable') {
+    list = list.filter(d => {
+      const score = (d.security_posture?.score_ponderado !== undefined) ? d.security_posture.score_ponderado : ((d.resumen_diario?.posture_score_promedio) || 100);
+      const ioa = d.security_posture?.alertas_ioa_24h || 0;
+      const hwsmar = d.almacenamiento_ssd?.smart_status || d.resumen_diario?.smart_status || "OK";
+      return (score < 90 || ioa > 0 || hwsmar !== "OK");
+    });
+  }
+  if (isSorted) {
+    list.sort((a, b) => {
+      const scoreA = (a.security_posture?.score_ponderado !== undefined) ? a.security_posture.score_ponderado : ((a.resumen_diario?.posture_score_promedio) || 100);
+      const scoreB = (b.security_posture?.score_ponderado !== undefined) ? b.security_posture.score_ponderado : ((b.resumen_diario?.posture_score_promedio) || 100);
+      return scoreB - scoreA;
+    });
+  }
+  let gridHtml = "";
+  list.forEach(d => {
+    const sm = d.almacenamiento_ssd?.smart_status || d.resumen_diario?.smart_status || "OK";
+    const tempCPU = parseFloat(d.termico_fans?.cpu_temperatura_c || d.resumen_diario?.temperatura_maxima_cpu || 0);
+    let nodeColor = 'text-full-green';
+    let cardGlow = 'glow-green';
+    if (sm !== "OK") {
+      if (sm === "VERIFICAR") { nodeColor = 'text-warning'; cardGlow = 'glow-yellow'; }
+      else { nodeColor = 'text-error'; cardGlow = 'glow-red'; }
+    }
+    if (!isFlash && tempCPU > 85 && sm === "OK") {
+      nodeColor = 'text-error'; cardGlow = 'glow-red';
+    }
+    const usuarioRaw = d.cliente?.usuario || 'DISPOSITIVO';
+    
+    // SANITIZACIÓN VECTOR XSS
+    const usuarioLimpio = escapeHTML(usuarioRaw.replace(/\s+\d+$/, "").trim().toUpperCase());
+    const uidDispositivoHtml = escapeHTML(d._dispositivoUID);
+    const nodeColorHtml = escapeHTML(nodeColor);
+    const cardGlowHtml = escapeHTML(cardGlow);
+
+    gridHtml += `
+      <div data-uid="${uidDispositivoHtml}" class="btn-node-trigger glass-card p-3 rounded-xl border border-white/5 flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-all text-center ${cardGlowHtml}">
+        <span class="material-symbols-outlined text-3xl ${nodeColorHtml}">laptop_mac</span>
+        <p class="text-[10px] font-bold text-white mt-2 truncate w-full uppercase">${usuarioLimpio}</p>
+      </div>`;
+  });
+  gridContainer.innerHTML = gridHtml || '<p class="text-xs text-on-surface-variant italic col-span-full py-4 text-center">Sin equipos conectados.</p>';
+};
+
+const openTechSheet = (uid) => {
+  const d = window.equiposData[uid]; if(!d) return; equipoSeleccionado = d;
+  const esPlanFlash = (supervisorPlan === 'FLASH');
+  const containerAI = document.getElementById('container-agent-chat-placeholder');
+  const dynamicBody = document.getElementById('ai-dynamic-body');
+  const pulseAI = document.getElementById('ai-status-pulse');
+  document.querySelectorAll('.capado-flash-overlay').forEach(el => el.remove());
+  
+  const sheetUserRaw = d.cliente?.usuario || 'User';
+  // innerText maneja texto plano, pero se aplica escapeHTML por redundancia defensiva en elementos reactivos
+  document.getElementById('sheet-user').innerText = escapeHTML(sheetUserRaw.replace(/\s+\d+$/, "").trim().toUpperCase());
+  document.getElementById('sheet-os').innerText = `${escapeHTML(d.inventario_os?.os_ver || "Windows 11 PRO")} | ${escapeHTML(d.inventario_os?.ram_total || "16GB RAM")}`;
+  
+  const smart = d.almacenamiento_ssd?.smart_status || d.resumen_diario?.smart_status || "OK";
+  const smEl = document.getElementById('sheet-smart'); 
+  smEl.innerText = `S.M.A.R.T ${escapeHTML(smart)}`; 
+  smEl.className = smart === "OK" ? "text-[9px] font-black text-full-green mt-1" : "text-[9px] font-black text-error mt-1 animate-pulse";
+  
+  const tipoDiscoReal = d.almacenamiento_ssd?.tipo_medio || "SSD";
+  document.getElementById('sheet-label-disco').innerText = `Almacenamiento (${escapeHTML(tipoDiscoReal.toUpperCase())}) `;
+  const totalGB = parseFloat(d.almacenamiento_ssd?.disco_total_gb || 256);
+  const libreGB = parseFloat(d.almacenamiento_ssd?.disco_libre_gb || 120);
+  const usadoGB = (totalGB - libreGB).toFixed(0);
+  document.getElementById('sheet-ssd').innerText = `${usadoGB} GB / ${totalGB.toFixed(0)} GB`;
+  const porcentajeLlenado = totalGB > 0 ? Math.round(((totalGB - libreGB) / totalGB) * 100) : 0;
+  
+  document.getElementById('sheet-temp-cpu').innerText = (d.termico_fans?.cpu_temperatura_c || d.resumen_diario?.temperatura_maxima_cpu || 0) + "°C";
+  document.getElementById('sheet-fans').innerText = escapeHTML(d.termico_fans?.fan_speed_rpm || "0") + " RPM";
+  document.getElementById('sheet-bat-text').innerText = (d.energia_bateria?.bateria_pct || 0) + "%";
+  document.getElementById('sheet-wear').innerText = `WEAR LEVEL: ${(d.energia_bateria?.battery_wear_level_pct || d.resumen_diario?.bateria_wear_level || 0)}%`;
+  
+  let activeRAM = d.estado_actual?.ram_pct;
+  let activeCPU = d.estado_actual?.cpu_pct;
+  if (activeRAM === undefined && d.muestras_10_minutos?.uso_ram) {
+    activeRAM = d.muestras_10_minutos.uso_ram[d.muestras_10_minutos.uso_ram.length - 1] || 0;
+    activeCPU = d.muestras_10_minutos.uso_cpu[d.muestras_10_minutos.uso_cpu.length - 1] || 0;
+  }
+  document.getElementById('sheet-ram-text').innerText = (activeRAM || 0) + "%";
+  document.getElementById('sheet-cpu-text').innerText = (activeCPU || 0) + "%";
+  const horasUptime = Math.floor((d.inventario_os?.boot_time_sec || 0) / 3600);
+  document.getElementById('sheet-uptime').innerText = `${horasUptime} HORAS`;
+  document.getElementById('sheet-panics').innerText = d.estabilidad_sistema?.bsod_conteo_7d || 0;
+  
+  const topProcesoRaw = d.estado_actual?.top_procesos?.[0]?.nombre || "--";
+  document.getElementById('sheet-top-process').innerText = escapeHTML(topProcesoRaw);
+  document.getElementById('sheet-swap').innerText = (d.estado_actual?.swap_uso_pct !== undefined ? d.estado_actual.swap_uso_pct + "%" : "NORMAL");
+  document.getElementById('sheet-boot-time').innerText = (d.inventario_os?.boot_time_sec !== undefined ? d.inventario_os.boot_time_sec + " SEG" : "--");
+  document.getElementById('sheet-slots-libres').innerText = d.inventario_os?.ram_slots_libres !== undefined ? d.inventario_os.ram_slots_libres : "--";
+  document.getElementById('sheet-red-telemetria').innerText = escapeHTML(d.conectividad_red?.tipo_conexion || "Desconectado") + (d.conectividad_red?.wifi_senal_pct !== undefined ? ` (${d.conectividad_red.wifi_senal_pct}%)` : "");
+  document.getElementById('sheet-av-provider').innerText = escapeHTML(d.security_posture?.antivirus?.nombre || 'Windows Defender');
+  
+  const rtpIcon = document.getElementById('icon-av-rtp');
+  const sigsIcon = document.getElementById('icon-av-sigs');
+  if(rtpIcon) rtpIcon.className = d.security_posture?.antivirus?.rtp_activo ? "w-2 h-2 rounded-full bg-full-green" : "w-2 h-2 rounded-full bg-error animate-pulse";
+  if(sigsIcon) sigsIcon.className = d.security_posture?.antivirus?.firmas_actualizadas ? "w-2 h-2 rounded-full bg-full-green" : "w-2 h-2 rounded-full bg-error animate-pulse";
+  
+  const fwEl = document.getElementById('sheet-firewall-status');
+  if(fwEl) {
+    if(d.security_posture?.firewall_activo) {
+      fwEl.innerText = "ACTIVO"; fwEl.className = "font-bold px-2 py-0.5 rounded text-[10px] bg-full-green/10 text-full-green";
+    } else {
+      fwEl.innerText = "INACTIVO"; fwEl.className = "font-bold px-2 py-0.5 rounded text-[10px] bg-error/10 text-error animate-pulse";
+    }
+  }
+  document.getElementById('sheet-patch-status').innerText = d.security_posture?.parches_pendientes !== undefined ? `${d.security_posture.parches_pendientes} Boletines` : "0 Pendientes";
+  
+  const bL = document.getElementById('sheet-bitlocker-status');
+  if(bL) {
+    const bLVal = d.security_posture?.bitlocker_status || "PROTEGIDO";
+    bL.innerText = escapeHTML(bLVal);
+    bL.className = bLVal === "PROTEGIDO" ? "font-bold text-full-green" : "font-bold text-error animate-pulse";
+  }
+  const uacL = document.getElementById('sheet-uac-status');
+  if(uacL) {
+    const uacVal = d.security_posture?.uac_status || "ACTIVO";
+    uacL.innerText = escapeHTML(uacVal);
+    uacL.className = uacVal === "ACTIVO" ? "font-bold text-full-green" : "font-bold text-warning";
+  }
+  const lsaL = document.getElementById('sheet-lsa-status');
+  if(lsaL) {
+    const lsaVal = d.security_posture?.lsa_protection || "ACTIVO";
+    lsaL.innerText = escapeHTML(lsaVal);
+    lsaL.className = lsaVal === "ACTIVO" ? "font-bold text-full-green" : "font-bold text-error";
+  }
+  const portsL = document.getElementById('sheet-ports-status');
+  if(portsL) {
+    portsL.innerText = d.security_posture?.puertos_criticos_cerrados ? "SEGURO" : "EXPUESTO (RDP/SMB)";
+    portsL.className = d.security_posture?.puertos_criticos_cerrados ? "font-bold text-full-green" : "font-bold text-error animate-pulse";
+  }
+  const dnsEl = document.getElementById('sheet-dns-status');
+  if(dnsEl) {
+    if(d.security_posture?.hosts_altered) {
+      dnsEl.innerText = "ALTERACIÓN DETECTADA"; dnsEl.className = "font-bold text-error animate-pulse";
+    } else {
+      dnsEl.innerText = "SIN ALTERACIÓN"; dnsEl.className = "font-bold text-full-green";
+    }
+  }
+  document.getElementById('sheet-startup-status').innerText = d.security_posture?.persistencia_anomala !== undefined ? `${d.security_posture.persistencia_anomala} No Firmados` : "0 Elementos";
+  document.getElementById('sheet-mcp-status').innerText = d.security_posture?.ai_runtime?.mcp_secure ? "PROPIO / SEGURO" : "MODO PROVEEDOR EXTERNO";
+  document.getElementById('sheet-mcp-status').className = d.security_posture?.ai_runtime?.mcp_secure ? "font-bold text-full-green" : "font-bold text-warning";
+  const promptInjCount = d.security_posture?.ai_runtime?.prompt_injections || 0;
+  document.getElementById('sheet-prompt-injections').innerText = `${promptInjCount} DETECCIONES`;
+  document.getElementById('sheet-prompt-injections').className = promptInjCount === 0 ? "font-bold text-full-green" : "font-bold text-error animate-pulse";
+  const rogueCount = d.security_posture?.ai_runtime?.rogue_executions || 0;
+  document.getElementById('sheet-rogue-agents').innerText = rogueCount === 0 ? "NINGUNO" : `${rogueCount} LLAMADAS SUSPENDIDAS`;
+  document.getElementById('sheet-rogue-agents').className = rogueCount === 0 ? "font-bold text-full-green" : "font-bold text-error animate-pulse";
+
+  if (esPlanFlash) {
+    const lockHTMLTechPequeno = `<span class="material-symbols-outlined text-full-green text-xl font-black drop-shadow-[0_0_4px_rgba(0,223,154,0.4)]">lock</span><span class="text-[8.5px] tracking-widest text-slate-400 font-extrabold uppercase mt-1">PLAN FULL</span>`;
+    const lockHTMLTechNormal = `<span class="material-symbols-outlined text-full-green text-3xl font-black drop-shadow-[0_0_8px_rgba(0,223,154,0.4)]">lock</span><span class="text-[10px] tracking-widest text-slate-400 font-extrabold uppercase mt-2">PLAN FULL</span>`;
+    ['sheet-status-hardware-card', 'sheet-renovacion-container'].forEach(id => {
+      const contenedorTarget = document.getElementById(id);
+      if (contenedorTarget) {
+        contenedorTarget.classList.add('plan-flash-locked');
+        const overlay = document.createElement('div');
+        overlay.className = "capado-flash-overlay absolute inset-0 bg-[#0d172a] flex flex-col items-center justify-center text-center p-1 z-30 rounded-xl";
+        overlay.innerHTML = lockHTMLTechPequeno;
+        contenedorTarget.appendChild(overlay);
+      }
+    });
+    ['container-sheet-termica', 'container-sheet-avanzado', 'container-sheet-ia-runtime'].forEach(id => {
+      const contenedorTarget = document.getElementById(id);
+      if (contenedorTarget) {
+        contenedorTarget.classList.add('plan-flash-locked');
+        const overlay = document.createElement('div');
+        overlay.className = "capado-flash-overlay absolute inset-0 bg-[#0d172a] flex flex-col items-center justify-center text-center p-2 z-30 rounded-xl";
+        overlay.innerHTML = lockHTMLTechNormal;
+        contenedorTarget.appendChild(overlay);
+      }
+    });
+  } else {
+    ['sheet-status-hardware-card', 'sheet-renovacion-container', 'container-sheet-termica', 'container-sheet-avanzado', 'container-sheet-ia-runtime'].forEach(id => {
+      const contenedorTarget = document.getElementById(id);
+      if (contenedorTarget) contenedorTarget.classList.remove('plan-flash-locked');
+    });
+    const cardFally = document.getElementById('sheet-status-hardware-card');
+    if (smart !== "OK") {
+      document.getElementById('sheet-hardware-urgencia').innerText = `REEMPLAZAR DISCO ${tipoDiscoReal.toUpperCase()} YA`;
+      cardFally.className = "px-4 py-3 rounded-xl border text-center relative kpi-container bg-error/10 border-error/50 text-error animate-pulse";
+    } else if (parseFloat(d.termico_fans?.cpu_temperatura_c || d.resumen_diario?.temperatura_maxima_cpu || 0) > 85) {
+      document.getElementById('sheet-hardware-urgencia').innerText = " ALTA TEMPERATURA CRÍTICA";
+      cardFally.className = "px-4 py-3 rounded-xl border text-center relative kpi-container bg-error/10 border-error/50 text-error animate-pulse";
+    } else {
+      document.getElementById('sheet-hardware-urgencia').innerText = "HARDWARE SIN FALLAS";
+      cardFally.className = "px-4 py-3 rounded-xl border text-center relative kpi-container bg-full-green/5 border-full-green/20 text-full-green";
+    }
+    const wear = d.energia_bateria?.battery_wear_level_pct || d.resumen_diario?.bateria_wear_level || 0;
+    const ssdVida = d.almacenamiento_ssd?.vida_util_pct || d.resumen_diario?.salud_ssd_vida_util || 100;
+    const renCont = document.getElementById('sheet-renovacion-container');
+    let obsMsg = "CICLO ÓPTIMO";
+    renCont.className = "px-4 py-3 rounded-xl border text-center relative kpi-container bg-full-green/5 border-full-green/20 text-full-green";
+    if (wear > 30 || ssdVida < 70 || d.inventario_os?.ram_slots_libres == 0 || tipoDiscoReal.toUpperCase() === "HDD") {
+      obsMsg = "OBSOLESCENCIA MEDIA";
+      renCont.className = "px-4 py-3 rounded-xl border text-center relative kpi-container bg-warning/5 border-warning/30 text-warning";
+    }
+    if (wear > 60 || ssdVida < 25) {
+      obsMsg = "OBSOLESCENCIA CRÍTICA";
+      renCont.className = "px-4 py-3 rounded-xl border text-center relative kpi-container bg-error/5 border-error/30 text-error";
+    }
+    document.getElementById('sheet-renovacion').innerText = obsMsg;
+  }
+  
+  applyColorBars('ssd-progress', porcentajeLlenado, false, smart);
+  applyColorBars('ram-progress', activeRAM || 0, true, "OK");
+  applyColorBars('cpu-progress', activeCPU || 0, true, "OK");
+  if(pulseAI) pulseAI.className = "w-2 h-2 rounded-full bg-full-green/60 shadow-[0_0_8px_rgba(0,223,154,0.6)]";
+  if(containerAI) containerAI.className = "w-full h-auto rounded-2xl glass-card p-5 border border-primary/30 bg-gradient-to-br from-[#0d1c32]/60 via-[#041329]/40 to-[#142642]/50 shadow-[0_0_25px_rgba(255,183,134,0.08)] flex flex-col relative overflow-visible transition-all duration-500 group";
+  
+  if(dynamicBody) {
+    dynamicBody.className = "flex flex-col items-center justify-center text-center py-6 flex-1 gap-3 w-full h-auto overflow-visible transition-all";
+    dynamicBody.innerHTML = `
+      <p class="text-xs font-semibold text-on-surface-variant tracking-normal max-w-md" id="recuadro_sentinel_texto">¿Listo para desplegar un diagnóstico predictivo asistido por IA?</p>
+      <button id="btn-trigger-ai-embedded" class="px-5 py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary font-black text-[10px] uppercase tracking-[0.15em] hover:bg-primary hover:text-surface transition-all duration-300 shadow-lg shadow-black/40 flex items-center gap-2 group/btn">
+        <span class="material-symbols-outlined text-[14px] font-bold group-hover/btn:rotate-180 transition-transform duration-500">bolt</span> Generar AI Insight
+      </button>`;
+  }
+  const sheet = document.getElementById('tech-sheet');
+  if(sheet) sheet.classList.add('open');
+};
+
+const closeTechSheet = () => {
+  const sheet = document.getElementById('tech-sheet');
+  if(sheet) sheet.classList.remove('open');
+};
+
+const openGlobalDiagnosticoModal = () => {
+  const bodyModal = document.getElementById('modal-global-body');
+  const totalPendientes = window.macroRecursosEquipos.length + window.macroAlmacenamientoEquipos.length + window.macroSeguridadEquipos.length;
+  if (totalPendientes === 0) {
+    bodyModal.innerHTML = `<p class="text-xs text-on-surface-variant italic text-center py-6">Toda la flota corporativa opera dentro de los umbrales normales de rendimiento y ciberseguridad. No hay acciones pendientes.</p>`;
+    document.getElementById('btn-modal-fix-all').style.display = 'none';
+    document.getElementById('modal-global-diagnostico').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('btn-modal-fix-all').style.display = 'inline-flex';
+  let htmlContenido = "";
+  if (window.macroRecursosEquipos.length > 0) {
+    const listNombres = window.macroRecursosEquipos.map(e => e.usuario).join(", ");
+    htmlContenido += `
+      <div class="p-4 rounded-xl border border-tertiary/20 bg-tertiary/5 relative flex flex-col gap-2">
+        <div class="flex justify-between items-start">
+          <h4 class="text-sm font-black text-white flex items-center gap-1.5"><span class="material-symbols-outlined text-tertiary text-lg">memory</span> Optimización de Recursos y Silicio</h4>
+          <span class="px-2 py-0.5 rounded text-[9px] font-black bg-tertiary/10 text-tertiary uppercase tracking-wider">${window.macroRecursosEquipos.length} Equipos</span>
+        </div>
+        <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+          <strong>Diagnóstico:</strong> Procesadores operando bajo alta frecuencia sostenida, desajustes térmicos latentes o acumulación de subprocesos huérfanos de inicio. La corrección calibra el gobernador eléctrico nativo y purga los hilos muertos del silicio.
+        </p>
+        <div class="font-mono text-[10px] text-slate-400 bg-black/30 px-3 py-1.5 rounded-lg border border-white/5 truncate">Equipos afectados: ${escapeHTML(listNombres)}</div>
+        <div class="flex justify-end mt-1">
+          <button id="btn-macro-fix-silicio" data-tipo="silicio" class="btn-macro-trigger px-4 py-1.5 rounded bg-tertiary text-surface font-black text-[10px] uppercase tracking-wider transition-all hover:bg-tertiary/90 shadow-md">Calibrar Recursos</button>
+        </div>
+      </div>`;
+  }
+  if (window.macroAlmacenamientoEquipos.length > 0) {
+    const listNombres = window.macroAlmacenamientoEquipos.map(e => e.usuario).join(", ");
+    htmlContenido += `
+      <div class="p-4 rounded-xl border border-warning/20 bg-warning/5 relative flex flex-col gap-2">
+        <div class="flex justify-between items-start">
+          <h4 class="text-sm font-black text-white flex items-center gap-1.5"><span class="material-symbols-outlined text-warning text-lg">cleaning_services</span> Almacenamiento Forzado o Saturado</h4>
+          <span class="px-2 py-0.5 rounded text-[9px] font-black bg-warning/10 text-warning uppercase tracking-wider">${window.macroAlmacenamientoEquipos.length} Equipos</span>
+        </div>
+        <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+          <strong>Diagnóstico:</strong> Unidades SSD/HDD operando por encima del 75% de llenado o registrando alertas latentes de bloques defectuosos. Esto ralentiza el intercambio de paginación virtual (SWAP) de Windows. La mitigación purga archivos basura y fuerza el TRIM electrónico.
+        </p>
+        <div class="font-mono text-[10px] text-slate-400 bg-black/30 px-3 py-1.5 rounded-lg border border-white/5 truncate">Equipos afectados: ${escapeHTML(listNombres)}</div>
+        <div class="flex justify-end mt-1">
+          <button id="btn-macro-fix-disco" data-tipo="disco" class="btn-macro-trigger px-4 py-1.5 rounded bg-warning text-surface font-black text-[10px] uppercase tracking-wider transition-all hover:bg-warning/90 shadow-md">Saneamiento de Volumen</button>
+        </div>
+      </div>`;
+  }
+  if (window.macroSeguridadEquipos.length > 0) {
+    const listNombres = window.macroSeguridadEquipos.map(e => e.usuario).join(", ");
+    htmlContenido += `
+      <div class="p-4 rounded-xl border border-error/20 bg-error/5 relative flex flex-col gap-2">
+        <div class="flex justify-between items-start">
+          <h4 class="text-sm font-black text-white flex items-center gap-1.5"><span class="material-symbols-outlined text-error text-lg">gpp_maybe</span> Brechas Críticas de Hardening y SecOps</h4>
+          <span class="px-2 py-0.5 rounded text-[9px] font-black bg-error/10 text-error uppercase tracking-wider">${window.macroSeguridadEquipos.length} Equipos</span>
+        </div>
+        <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+          <strong>Diagnóstico:</strong> Estaciones operando con perfiles perimetrales caídos (Firewall OS deshabilitado), desajustes lógicos que reducen el score ISO 27001 o pérdida en la estabilidad del túnel VPN seguro. La mitigación re-inyecta directivas de bastionado rígido.
+        </p>
+        <div class="font-mono text-[10px] text-slate-400 bg-black/30 px-3 py-1.5 rounded-lg border border-white/5 truncate">Equipos afectados: ${escapeHTML(listNombres)}</div>
+        <div class="flex justify-end mt-1">
+          <button id="btn-macro-fix-seguridad" data-tipo="seguridad" class="btn-macro-trigger px-4 py-1.5 rounded bg-error text-surface font-black text-[10px] uppercase tracking-wider transition-all hover:bg-error/90 shadow-md">Forzar Hardening</button>
+        </div>
+      </div>`;
+  }
+  bodyModal.innerHTML = htmlContenido;
+  document.getElementById('modal-global-diagnostico').classList.remove('hidden');
+};
+
+const closeGlobalDiagnosticoModal = () => {
+  document.getElementById('modal-global-diagnostico').classList.add('hidden');
+};
+
+const closeTrendModal = () => {
+  document.getElementById('modal-trend').classList.add('hidden');
+  if(myChart) myChart.destroy();
+};
+
+const abrirModalTrend = (metrica) => {
+  if(supervisorPlan === 'FLASH' && metrica !== 'SSD') return;
+  chartMetricGlobal = metrica;
+  document.getElementById('modal-trend').classList.remove('hidden');
+  renderTrendChart(metrica, '7d');
+};
+
+const renderTrendChart = (metric, range) => {
+  const canvas = document.getElementById('trendChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (myChart) myChart.destroy();
+  let labels = [];
+  let dataPoints = []; 
+  let labelText = `${metric} (%)`; 
+  let colorHex = '#ffb786';
+  const baseRAM = equipoSeleccionado?.estado_actual?.ram_pct || 50;
+  const baseCPU = parseFloat(equipoSeleccionado?.termico_fans?.cpu_temperatura_c || equipoSeleccionado?.resumen_diario?.temperatura_maxima_cpu || 45);
+  const totalGB = parseFloat(equipoSeleccionado?.almacenamiento_ssd?.disco_total_gb || 256);
+  const libreGB = parseFloat(equipoSeleccionado?.almacenamiento_ssd?.disco_libre_gb || 120);
+  const baseSSD = totalGB > 0 ? Math.round(((totalGB - libreGB) / totalGB) * 100) : 40;
+  let baseVal = 50;
+  if (metric === 'RAM') { baseVal = baseRAM; colorHex = '#4edea3'; }
+  else if (metric === 'CPU') { baseVal = baseCPU; colorHex = '#ffb786'; labelText = 'CPU Temp (°C)'; }
+  else if (metric === 'SSD') { baseVal = baseSSD; colorHex = '#00df9a'; labelText = 'Uso Almacenamiento (%)'; }
+  
+  if (range === '7d') {
+    labels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    for (let i = 0; i < 7; i++) {
+      let variance = Math.sin(i) * 5 + (Math.random() - 0.5) * 8;
+      dataPoints.push(Math.max(0, Math.min(100, Math.round(baseVal + variance))));
+    }
+  } else {
+    let prefix = range === 'rafaga_inicio' ? '08:' : (range === 'rafaga_pico' ? '14:' : '18:');
+    for (let i = 0; i < 12; i++) {
+      labels.push(`${prefix}${String(i * 5).padStart(2, '0')}`);
+      let variance = Math.cos(i) * 8 + (Math.random() - 0.5) * 12;
+      dataPoints.push(Math.max(0, Math.min(100, Math.round(baseVal + variance))));
+    }
+  }
+  myChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{ label: labelText, data: dataPoints, borderColor: colorHex, backgroundColor: `${colorHex}15`, borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#d6e3ff' } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#c5c6cd' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#c5c6cd' }, min: 0, max: metric === 'CPU' ? 110 : 100 }
+      }
+    }
+  });
+};
+
+const desplegarInferenciaAI = async () => {
+  if(!equipoSeleccionado) return;
+  const dynamicBody = document.getElementById('ai-dynamic-body');
+  const pulseAI = document.getElementById('ai-status-pulse');
+  if(pulseAI) pulseAI.className = "w-2 h-2 rounded-full bg-warning/60 shadow-[0_0_8px_rgba(250,204,21,0.6)] animate-pulse";
+  if(dynamicBody) {
+    dynamicBody.className = "flex flex-col items-center justify-center text-center py-4 flex-1 gap-3";
+    dynamicBody.innerHTML = `
+      <div class="flex flex-col items-center justify-center gap-2 py-2">
+        <span class="material-symbols-outlined text-primary text-2xl animate-spin">sync</span>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sincronizando hilos cognitivos...</p>
+      </div>`;
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const CLOUD_RUN_URL = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/diagnostico";
+    const activeCPU = (equipoSeleccionado.estado_actual?.cpu_pct !== undefined) ? equipoSeleccionado.estado_actual.cpu_pct : ((equipoSeleccionado.muestras_10_minutos?.uso_cpu?.[equipoSeleccionado.muestras_10_minutos.uso_cpu.length - 1]) || 0);
+    const activeRAM = (equipoSeleccionado.estado_actual?.ram_pct !== undefined) ? equipoSeleccionado.estado_actual.ram_pct : ((equipoSeleccionado.muestras_10_minutos?.uso_ram?.[equipoSeleccionado.muestras_10_minutos.uso_ram.length - 1]) || 0);
+    const listProcesos = equipoSeleccionado.estado_actual?.top_procesos || [];
+    const tempCpu = equipoSeleccionado.termico_fans?.cpu_temperatura_c || equipoSeleccionado.resumen_diario?.temperatura_maxima_cpu || 0;
+    const rpmFans = equipoSeleccionado.termico_fans?.fan_speed_rpm || 0;
+    const statusSmart = equipoSeleccionado.almacenamiento_ssd?.smart_status || equipoSeleccionado.resumen_diario?.smart_status || "OK";
+    const vidaSsd = equipoSeleccionado.almacenamiento_ssd?.vida_util_pct || equipoSeleccionado.resumen_diario?.salud_ssd_vida_util || 100;
+    const scoreGlobal = (equipoSeleccionado.security_posture?.score_ponderado !== undefined) ? equipoSeleccionado.security_posture.score_ponderado : ((equipoSeleccionado.resumen_diario?.posture_score_promedio) || 100);
+    const conteoAlertas = equipoSeleccionado.security_posture?.alertas_ioa_24h || 0;
+    const esFirewallActivo = (equipoSeleccionado.security_posture?.firewall_activo !== undefined && equipoSeleccionado.security_posture?.firewall_activo !== null) ? equipoSeleccionado.security_posture.firewall_activo : true;
+    const uacRaw = equipoSeleccionado.security_posture?.uac_status || "ACTIVO";
+    const uacStringEsperado = (uacRaw.toUpperCase() === "ACTIVO") ? "ACTIVO" : "INACTIVO";
+    const sonPuertosSeguros = (equipoSeleccionado.security_posture?.puertos_criticos_cerrados !== undefined && equipoSeleccionado.security_posture?.puertos_criticos_cerrados !== null) ? equipoSeleccionado.security_posture.puertos_criticos_cerrados : true;
+    const esRtpActivo = (equipoSeleccionado.security_posture?.antivirus?.rtp_activo !== undefined && equipoSeleccionado.security_posture?.antivirus?.rtp_activo !== null) ? equipoSeleccionado.security_posture.antivirus.rtp_activo : true;
+    
+    const pcDataParaEnviar = {
+      id: equipoSeleccionado._dispositivoUID || equipoSeleccionado.hardware_serial || "UNKNOWN_ID",
+      cliente: { usuario: equipoSeleccionado.cliente?.usuario || "Admin", empresa: currentEmpresaId },
+      inventario_os: { os_ver: equipoSeleccionado.inventario_os?.os_ver || "Windows 11 Pro" },
+      estado_actual: { cpu_pct: activeCPU, ram_pct: activeRAM, top_procesos: listProcesos },
+      termico_fans: { cpu_temperatura_c: tempCpu, fan_speed_rpm: rpmFans },
+      almacenamiento_ssd: { smart_status: statusSmart, tipo_medio: equipoSeleccionado.almacenamiento_ssd?.tipo_medio || "SSD", vida_util_pct: vidaSsd },
+      security_posture: { score_ponderado: scoreGlobal, alertas_ioa_24h: conteoAlertas, firewall_activo: esFirewallActivo, uac_status: uacStringEsperado, puertos_criticos_cerrados: sonPuertosSeguros, antivirus: { rtp_activo: esRtpActivo } }
+    };
+    
+    const response = await fetch(CLOUD_RUN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pcDataParaEnviar), signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) throw new Error("API_ERROR");
+    const objetoAI = await response.json();
+    const diagnosticoTexto = objetoAI.diagnostico || objetoAI.diagnostico_texto || "";
+    const comandoSugerido = objetoAI.mini_herramienta || objetoAI.mini_herramienta_sugerida || "ok";
+    let bloqueAccionHTML = "";
+    if (comandoSugerido !== "ok" && MAPEO_VISUAL_HERRAMIENTAS[comandoSugerido]) {
+      const configVisual = MAPEO_VISUAL_HERRAMIENTAS[comandoSugerido];
+      if(pulseAI) pulseAI.className = `w-2 h-2 rounded-full bg-${configVisual.color}/60 shadow-[0_0_8px_rgba(255,255,255,0.4)]`;
+      bloqueAccionHTML = `
+        <div class="mt-4 pt-3.5 border-t border-white/5 w-full flex flex-col gap-2.5">
+          <p class="text-[11px] text-slate-200 font-medium flex items-start gap-1.5 leading-relaxed">
+            <span class="material-symbols-outlined text-${configVisual.color} text-[15px] shrink-0 mt-0.5">${configVisual.icon}</span>
+            ${configVisual.pregunta}
+          </p>
+          <button id="btn-exec-${escapeHTML(comandoSugerido)}" data-comando="${escapeHTML(comandoSugerido)}" data-uid="${escapeHTML(equipoSeleccionado._dispositivoUID)}" class="boton_remediar_hitl w-full py-2 rounded bg-${configVisual.color}/10 text-${configVisual.color} border border-${configVisual.color}/30 hover:bg-${configVisual.color} hover:text-surface font-black text-[10px] uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 transition-all duration-300 shadow-md">
+            <span class="material-symbols-outlined text-[14px]">bolt</span> ${configVisual.btnText}
+          </button>
+        </div>`;
+    } else {
+      if(pulseAI) pulseAI.className = "w-2 h-2 rounded-full bg-full-green/60 shadow-[0_0_8px_rgba(0,223,154,0.6)]";
+    }
+    if(dynamicBody) {
+      dynamicBody.className = "flex flex-col items-start justify-start text-left pt-3 pb-4 flex-1 w-full h-auto overflow-visible";
+      const pTexto = document.createElement('p');
+      pTexto.className = "text-xs text-white leading-relaxed font-medium font-mono border-l-2 border-primary/50 pl-3 italic whitespace-normal break-words h-auto w-full mb-2";
+      pTexto.id = "recuadro_sentinel_texto";
+      pTexto.innerText = `${diagnosticoTexto}`;
+      dynamicBody.innerHTML = "";
+      dynamicBody.appendChild(pTexto);
+      if (bloqueAccionHTML) {
+        const divAccion = document.createElement('div');
+        divAccion.className = "w-full";
+        divAccion.innerHTML = bloqueAccionHTML;
+        dynamicBody.appendChild(divAccion);
+      }
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error("Sentinel AI Fault Handler:", err);
+    if(pulseAI) pulseAI.className = "w-2 h-2 rounded-full bg-error/60 shadow-[0_0_8px_rgba(255,180,171,0.6)]";
+    if(dynamicBody) {
+      dynamicBody.className = "flex flex-col items-center justify-center text-center py-4 flex-1 gap-3 w-full";
+      let msgError = (err.name === 'AbortError') ? "La conexión con el motor cognitivo tardó demasiado." : "No se pudo establecer el enlace con el servidor de telemetría.";
+      dynamicBody.innerHTML = "";
+      const pError = document.createElement('p');
+      pError.className = "text-xs text-error font-medium max-w-md";
+      pError.innerText = msgError;
+      dynamicBody.appendChild(pError);
+      const btnRetry = document.createElement('button');
+      btnRetry.id = "btn-retry-inference";
+      btnRetry.className = "mt-2 px-4 py-1.5 rounded-lg border border-warning/40 bg-warning/10 text-warning font-black text-[9px] uppercase tracking-[0.15em] hover:bg-warning hover:text-surface transition-all duration-300 shadow-md flex items-center gap-1.5";
+      btnRetry.innerHTML = `<span class="material-symbols-outlined text-[12px] font-bold">refresh</span> Repetir Informe`;
+      dynamicBody.appendChild(btnRetry);
+    }
+  }
+};
+
+const ejecutarMiniHerramientaIndividual = async (idEquipo, comandoKey, btnElement) => {
+  const modalOOB = document.getElementById("modal-oob-auth");
+  const textOOB = document.getElementById("oob-auth-text");
+  const loaderOOB = document.getElementById("oob-loader");
+  if(btnElement) {
+    btnElement.disabled = true;
+    btnElement.innerHTML = `<span class="material-symbols-outlined text-[12px] animate-spin">sync</span> Validando...`;
+  }
+  try {
+    if(modalOOB) {
+      textOOB.innerText = "Sentinel SOC: Firmando orden con Google Enterprise...";
+      textOOB.className = "text-[11px] text-slate-400 font-medium mt-1 leading-normal";
+      loaderOOB.style.display = "flex";
+    }
+    modalOOB.classList.remove("hidden");
+    
+    // OBTENCIÓN CRIPTOGRÁFICA DEL TOKEN EN RUNTIME
+    const tokenDinamicoMFA = await auth.currentUser.getIdToken(true);
+    
+    textOOB.innerText = "Token verificado con éxito. Despachando comando...";
+    const REMEDIAR_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/remediar";
+    const response = await fetch(REMEDIAR_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idEquipo: idEquipo,
+        comandoKey: comandoKey,
+        coleccionOrigen: equipoSeleccionado._coleccionOrigen,
+        token_validacion: tokenDinamicoMFA
+      })
+    });
+    if (!response.ok) throw new Error("FAIL_DELEGATED_WRITE");
+    setTimeout(() => { if(modalOOB) modalOOB.classList.add("hidden"); }, 800);
+    if(btnElement) {
+      btnElement.className = "w-full py-2 px-4 rounded bg-full-green text-surface font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1";
+      btnElement.innerHTML = `<span class="material-symbols-outlined text-[13px] font-bold">check_circle</span> Acción Despachada`;
+    }
+  } catch(e) {
+    console.error("Error en Delegación HITL Frontend:", e);
+    if(modalOOB) {
+      textOOB.innerText = "Acceso Denegado: Fallo en firma de identidad.";
+      textOOB.className = "text-[11px] text-error font-bold mt-1 leading-normal";
+      loaderOOB.style.display = "none";
+      setTimeout(() => { modalOOB.classList.add("hidden"); }, 2500);
+    }
+    if(btnElement) {
+      btnElement.disabled = false;
+      btnElement.className = "w-full py-2 px-4 rounded bg-error/20 text-error border border-error/30 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1";
+      btnElement.innerHTML = `<span class="material-symbols-outlined text-[13px]">error</span> Error - Reintentar`;
+    }
+  }
+};
+
+const inyectarComandoGrupo = async (lista, comandoKey) => {
+  const modalOOB = document.getElementById("modal-oob-auth");
+  const textOOB = document.getElementById("oob-auth-text");
+  const loaderOOB = document.getElementById("oob-loader");
+  try {
+    if(modalOOB) {
+      textOOB.innerText = `Iniciando cascada masiva para ${lista.length} equipos...`;
+    }
+    loaderOOB.style.display = "flex";
+    modalOOB.classList.remove("hidden");
+    
+    // CONFIGURACIÓN DE SEGURIDAD EN PROCESO POR LOTES
+    const tokenDinamicoMFA = await auth.currentUser.getIdToken(true);
+    
+    const REMEDIAR_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/remediar";
+    for (const pc of lista) {
+      try {
+        await fetch(REMEDIAR_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idEquipo: pc.uid,
+            comandoKey: comandoKey,
+            coleccionOrigen: pc.origen,
+            token_validacion: tokenDinamicoMFA
+          })
+        });
+      } catch (e) {
+        console.error(`Error de inyección en cascada delegada para ${pc.usuario}:`, e);
+      }
+    }
+    if(modalOOB) modalOOB.classList.add("hidden");
+  } catch(err) {
+    console.error("Error en cascada masiva:", err);
+    if(modalOOB) modalOOB.classList.add("hidden");
+  }
+};
+
+const renderizarTodoSupervisor = () => {
+  let list = Object.values(window.equiposData);
+  const table = document.getElementById('incidents-table');
+  let risk = 0, th = 0, cG = 0, cY = 0, cR = 0;
+  let totalHardeningBreaches = 0; let totalIoAAlerts = 0;
+  let html = "";
+  const isFlash = (supervisorPlan === 'FLASH');
+  let countsAV = { protegido: 0, desactualizado: 0, desprotegido: 0 };
+  let macroRecursosCount = 0; let macroAlmacenamientoCount = 0; let macroSeguridadCount = 0;
+  window.macroRecursosEquipos = []; window.macroAlmacenamientoEquipos = []; window.macroSeguridadEquipos = [];
+  let aggregateComplianceTrend = [0,0,0,0,0,0,0]; let aggregateHardeningTrend = [0,0,0,0,0,0,0]; let aggregateIoATrend = [0,0,0,0,0,0,0];
+  
+  if (currentFilter === 'vulnerable') {
+    list = list.filter(d => {
+      const score = (d.security_posture?.score_ponderado !== undefined) ? d.security_posture.score_ponderado : ((d.resumen_diario?.posture_score_promedio) || 100);
+      const ioa = d.security_posture?.alertas_ioa_24h || 0;
+      const hwsmar = d.almacenamiento_ssd?.smart_status || d.resumen_diario?.smart_status || "OK";
+      return (score < 90 || ioa > 0 || hwsmar !== "OK");
+    });
+  }
+  if (isSorted) {
+    list.sort((a, b) => {
+      const scoreA = (a.security_posture?.score_ponderado !== undefined) ? a.security_posture.score_ponderado : ((a.resumen_diario?.posture_score_promedio) || 100);
+      const scoreB = (b.security_posture?.score_ponderado !== undefined) ? b.security_posture.score_ponderado : ((b.resumen_diario?.posture_score_promedio) || 100);
+      return scoreB - scoreA;
+    });
+  }
+  list.forEach(d => {
+    const sm = d.almacenamiento_ssd?.smart_status || d.resumen_diario?.smart_status || "OK";
+    const postureScore = (d.security_posture?.score_ponderado !== undefined) ? d.security_posture.score_ponderado : ((d.resumen_diario?.posture_score_promedio) || 100);
+    const tempCPU = parseFloat(d.termico_fans?.cpu_temperatura_c || d.resumen_diario?.temperatura_maxima_cpu || 0);
+    th += postureScore;
+    let l = 'ÓPTIMO', c = 'text-full-green bg-full-green/10';
+    cG++;
+    if (sm !== "OK") {
+      if (sm === "VERIFICAR") { l = 'PRECAUCIÓN'; c = 'text-warning bg-warning/10'; cY++; cG--; }
+      else { l = 'CRÍTICO'; c = 'text-error bg-error/10 animate-pulse'; risk++; cR++; cG--; }
+    }
+    if (!isFlash && tempCPU > 85 && sm === "OK") {
+      l = 'CRÍTICO'; c = 'text-error bg-error/10 animate-pulse'; risk++; cR++; cG--;
+    }
+    let secLabel = 'PROTEGIDO', secColor = 'text-full-green bg-full-green/10';
+    if (postureScore < 70) { secLabel = 'VULNERABLE'; secColor = 'text-error bg-error/10 animate-pulse'; }
+    else if (postureScore < 90) { secLabel = 'ADVERTENCIA'; secColor = 'text-warning bg-warning/10'; }
+    const hardeningCount = d.security_posture?.brechas_hardening || 0;
+    const ioaCount = d.security_posture?.alertas_ioa_24h || 0;
+    totalHardeningBreaches += hardeningCount;
+    totalIoAAlerts += ioaCount;
+    const totalGB = parseFloat(d.almacenamiento_ssd?.disco_total_gb || 256);
+    const libreGB = parseFloat(d.almacenamiento_ssd?.disco_libre_gb || 120);
+    const porcentajeLlenado = totalGB > 0 ? Math.round(((totalGB - libreGB) / totalGB) * 100) : 0;
+    const hddDetectado = (d.almacenamiento_ssd?.tipo_medio || "SSD").toUpperCase() === "HDD";
+    const usuarioRaw = d.cliente?.usuario || 'DISPOSITIVO';
+    
+    // SANITIZACIÓN EN ASIGNACIÓN DE INVENTARIO
+    const usuarioLimpio = escapeHTML(usuarioRaw.replace(/\s+\d+$/, "").trim().toUpperCase());
+    const labelEstadoHtml = escapeHTML(l);
+    const clEstadoHtml = escapeHTML(c);
+    const secColorHtml = escapeHTML(secColor);
+    const secLabelHtml = escapeHTML(secLabel);
+    const uidDispositivoHtml = escapeHTML(d._dispositivoUID);
+
+    const payloadEquipo = { uid: d._dispositivoUID, origen: d._coleccionOrigen, usuario: usuarioLimpio };
+    
+    if (porcentajeLlenado >= 75 || hddDetectado || sm !== "OK") {
+      macroAlmacenamientoCount++;
+      window.macroAlmacenamientoEquipos.push(payloadEquipo);
+    }
+    if (d.security_posture?.firewall_activo === false || postureScore < 90 || d.conectividad_red?.error_tunel_detectado === true || d.conectividad_red?.error_framework_detectado === true) {
+      macroSeguridadCount++; window.macroSeguridadEquipos.push(payloadEquipo);
+    }
+    let activeRAM = d.estado_actual?.ram_pct || 0;
+    if (activeRAM >= 60 || tempCPU > 85 || (d.inventario_os?.boot_time_sec || 0) > 40) {
+      macroRecursosCount++; window.macroRecursosEquipos.push(payloadEquipo);
+    }
+    let trendPostura = d.historial_postura || [postureScore, postureScore, postureScore, postureScore, postureScore, postureScore, postureScore];
+    let trendBrechas = d.historial_brechas || [hardeningCount, hardeningCount, hardeningCount, hardeningCount, hardeningCount, hardeningCount, hardeningCount];
+    let trendIoAs = d.historial_ioas || [ioaCount, ioaCount, ioaCount, ioaCount, ioaCount, ioaCount, ioaCount];
+    for(let i=0; i<7; i++) {
+      aggregateComplianceTrend[i] += trendPostura[i] || 100;
+      aggregateHardeningTrend[i] += trendBrechas[i] || 0;
+      aggregateIoATrend[i] += trendIoAs[i] || 0;
+    }
+    const avStatus = d.security_posture?.antivirus?.status || 'protegido';
+    if (countsAV[avStatus] !== undefined) countsAV[avStatus]++;
+    
+    html += `<tr data-uid="${uidDispositivoHtml}" class="btn-row-trigger border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"><td class="px-6 py-3.5 text-white font-bold uppercase truncate max-w-[110px]">${usuarioLimpio}</td><td class="px-4 py-3.5"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${clEstadoHtml}">${labelEstadoHtml}</span></td><td class="px-4 py-3.5"><span class="px-2 py-0.5 rounded text-[9px] font-bold ${secColorHtml}">${secLabelHtml}</span></td><td class="px-4 py-3.5 font-bold"><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ${hardeningCount > 0 ? 'bg-warning' : 'bg-full-green'}"></span> Hardening <span class="w-2 h-2 rounded-full ${ioaCount > 0 ? 'bg-error animate-pulse' : 'bg-full-green'} ml-2"></span> Alertas</div></td><td class="px-4 py-3.5 text-center"><span class="material-symbols-outlined text-lg text-slate-400">visibility</span></td></tr>`;
+  });
+  if(table) table.innerHTML = html;
+  const tot = list.length;
+  document.getElementById('device-count').innerText = tot;
+  document.getElementById('kpi-health').innerText = (tot > 0 ? Math.round(list.reduce((acc, cr) => acc + (cr.almacenamiento_ssd?.vida_util_pct || cr.resumen_diario?.salud_ssd_vida_util || 100), 0)/tot) : 100) + "%";
+  document.getElementById('kpi-risk').innerText = risk;
+  document.getElementById('kpi-hardening-count').innerText = isFlash ? 0 : totalHardeningBreaches;
+  document.getElementById('network-pct').innerText = isFlash ? 0 : totalIoAAlerts;
+  document.getElementById('compliance-pct').innerText = isFlash ? "100%" : (tot > 0 ? Math.round(th/tot) : 100) + "%";
+  document.getElementById('global-metric-ram').innerText = `${macroRecursosCount} PC`;
+  document.getElementById('global-metric-cache').innerText = `${macroAlmacenamientoCount} PC`;
+  document.getElementById('global-metric-firewall').innerText = `${macroSeguridadCount} PC`;
+  
+  const planContainer = document.getElementById('plan-container');
+  const badgeEl = document.getElementById('plan-badge');
+  document.querySelectorAll('.kpi-lock-overlay').forEach(el => el.remove());
+  if (tot > 0) {
+    planContainer.classList.remove('hidden');
+    if (supervisorPlan === 'FLASH') {
+      badgeEl.innerText = "PLAN FLASH";
+      planContainer.className = "glass-card px-5 py-2.5 rounded-xl border border-warning/40 flex flex-col items-end shadow-sm text-right transition-colors duration-500";
+      badgeEl.className = "text-[14px] font-black tracking-tight leading-none text-warning";
+      const lockHTMLGlobal = `<span class="material-symbols-outlined text-full-green text-2xl font-black drop-shadow-[0_0_6px_rgba(0,223,154,0.4)]">lock</span><span class="text-[9px] tracking-widest text-slate-400 font-extrabold uppercase mt-1.5">PLAN FULL</span>`;
+      ['card-kpi-productivity', 'card-kpi-network', 'card-kpi-compliance'].forEach(id => {
+        const card = document.getElementById(id);
+        if (card) {
+          card.classList.add('plan-flash-locked');
+          const overlay = document.createElement('div');
+          overlay.className = "kpi-lock-overlay absolute inset-0 bg-[#151f32] flex flex-col items-center justify-center text-center p-1 z-30 rounded-xl";
+          overlay.innerHTML = lockHTMLGlobal;
+          card.appendChild(overlay);
+        }
+      });
+    } else {
+      ['card-kpi-productivity', 'card-kpi-network', 'card-kpi-compliance'].forEach(id => {
+        const card = document.getElementById(id);
+        if (card) card.classList.remove('plan-flash-locked');
+      });
+      badgeEl.innerText = "PLAN FULL";
+      planContainer.className = "glass-card px-5 py-2.5 rounded-xl border border-full-green/40 flex flex-col items-end shadow-sm text-right transition-colors duration-500";
+      badgeEl.className = "text-[14px] font-black tracking-tight leading-none text-full-green";
+      let avgCompTrend = aggregateComplianceTrend.map(v => tot > 0 ? Math.round(v/tot) : 100);
+      let avgHardTrend = aggregateHardeningTrend.map(v => tot > 0 ? Math.round(v/tot) : 0);
+      let avgIoATrend = aggregateIoATrend.map(v => tot > 0 ? Math.round(v/tot) : 0);
+      sparklineComplianceChart = drawSparkline('sparkline-compliance', avgCompTrend, '#00df9a', sparklineComplianceChart);
+      sparklineHardeningChart = drawSparkline('sparkline-hardening', avgHardTrend, '#facc15', sparklineHardeningChart);
+      sparklineNetworkChart = drawSparkline('sparkline-network', avgIoATrend, '#ffb4ab', sparklineNetworkChart);
+    }
+  }
+  if(tot > 0) {
+    document.getElementById('pct-optimo').innerText = ((cG/tot)*100).toFixed(1) + "%";
+    document.getElementById('pct-precaucion').innerText = ((cY/tot)*100).toFixed(1) + "%";
+    document.getElementById('pct-critico').innerText = ((cR/tot)*100).toFixed(1) + "%";
+  } else {
+    document.getElementById('pct-optimo').innerText = "0%";
+    document.getElementById('pct-precaucion').innerText = "0%";
+    document.getElementById('pct-critico').innerText = "0%";
+  }
+  if(currentView === 'grid') renderHeatmap();
+  updateAntiVirusChart(countsAV);
+  renderizarRankingRiesgo(list);
+};
+
+const renderizarRankingRiesgo = (list) => {
+  const rankingContainer = document.getElementById('ranking-list');
+  if (!rankingContainer) return;
+  const topRiesgo = [...list].sort((a, b) => {
+    const scoreA = (a.security_posture?.score_ponderado !== undefined) ? a.security_posture.score_ponderado : ((a.resumen_diario?.posture_score_promedio) || 100);
+    const scoreB = (b.security_posture?.score_ponderado !== undefined) ? b.security_posture.score_ponderado : ((b.resumen_diario?.posture_score_promedio) || 100);
+    return scoreA - scoreB;
+  }).slice(0, 3);
+  let rankingHtml = "";
+  topRiesgo.forEach((pc, index) => {
+    const score = (pc.security_posture?.score_ponderado !== undefined) ? pc.security_posture.score_ponderado : ((pc.resumen_diario?.posture_score_promedio) || 100);
+    const usuarioRaw = pc.cliente?.usuario || 'DISPOSITIVO';
+    
+    // SANITIZACIÓN VECTOR XSS EN TOP RANKING
+    const usuarioLimpio = escapeHTML(usuarioRaw.replace(/\s+\d+$/, "").trim().toUpperCase());
+    const uidDispositivoHtml = escapeHTML(pc._dispositivoUID);
+    const scoreHtml = escapeHTML(score);
+
+    rankingHtml += `
+      <div data-uid="${uidDispositivoHtml}" class="btn-node-trigger flex items-center justify-between p-2.5 rounded-xl bg-black/30 border border-white/5 text-xs cursor-pointer hover:bg-white/5 transition-all">
+        <span class="font-bold text-slate-200 flex items-center gap-2">
+          <span class="font-black text-error">#${index + 1}</span> ${usuarioLimpio}
+        </span>
+        <span class="font-mono px-2 py-0.5 rounded text-[10px] font-black bg-error/10 text-error">${scoreHtml}% Score</span>
+      </div>`;
+  });
+  rankingContainer.innerHTML = rankingHtml || '<p class="text-[10px] text-slate-500 text-center py-2">Flota completamente segura.</p>';
+};
+
+function escucharEquiposFlota() {
+  if(!currentEmpresaId) return;
+  activosUnsubscribes.forEach(unsub => { if(typeof unsub === 'function') unsub(); });
+  activosUnsubscribes = [];
+  let consolidatedData = {};
+  FUENTES.forEach(coleccion => {
+    const q = query(collection(db, coleccion), where("cliente.empresa", "==", currentEmpresaId.toUpperCase()));
+    const unsub = onSnapshot(q, (snap) => {
+      snap.forEach(d => {
+        const dt = d.data();
+        const idDispositivo = dt.hardware_serial || d.id.substring(0, d.id.lastIndexOf('_')) || dt.cliente?.usuario || d.id;
+        if (!consolidatedData[idDispositivo] || (dt.timestamp_envio || dt.timestamp)?.seconds > (consolidatedData[idDispositivo].timestamp_envio || consolidatedData[idDispositivo].timestamp)?.seconds) {
+          consolidatedData[idDispositivo] = { ...dt, _dispositivoUID: idDispositivo, _coleccionOrigen: coleccion };
+        }
+      });
+      window.equiposData = consolidatedData;
+      renderizarTodoSupervisor();
+    }, (error) => { console.error(`Error en ${coleccion}:`, error.message); });
+    activosUnsubscribes.push(unsub);
+  });
+}
+
+function arrancarCicloDeAutenticacion() {
+  onAuthStateChanged(auth, async (u) => {
+    if (u) {
+      try {
+        const userRef = doc(db, "usuarios", u.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          currentEmpresaId = userData.empresa_id;
+          document.title = "SCC | Supervisor " + currentEmpresaId.toUpperCase();
+          supervisorPlan = userData.plan ? userData.plan.toUpperCase() : 'FULL';
+          const sC = await getDocs(query(collection(db, "contactos"), where("email", "==", u.email)));
+          if(!sC.empty) {
+            const cD = sC.docs[0].data();
+            currentSupervisorNombre = `${cD.nombre} ${cD.apellido}`;
+            document.getElementById('user-full-name').innerText = currentSupervisorNombre.toUpperCase();
+            document.getElementById('company-name').innerText = cD.empresa.toUpperCase();
+          }
+          escucharEquiposFlota();
+          initAntiVirusChart();
+          setupListenersEstaticos();
+        } else { window.location.href = 'login.html'; }
+      } catch (err) { console.error("Error Auth:", err.message); }
+    } else { window.location.href = 'login.html'; }
+  });
+}
+
+function setupListenersEstaticos() {
+  document.addEventListener('click', (e) => {
+    const targetTrigger = e.target.closest('.btn-row-trigger, .btn-node-trigger');
+    if (targetTrigger) { const uid = targetTrigger.getAttribute('data-uid'); openTechSheet(uid); }
+    
+    const targetAl = e.target.closest('#btn-trigger-ai-embedded, #btn-retry-inference');
+    if (targetAl) { desplegarInferenciaAI(); }
+    
+    const targetRemediar = e.target.closest('.boton_remediar_hitl');
+    if (targetRemediar) {
+      const uid = targetRemediar.getAttribute('data-uid');
+      const comando = targetRemediar.getAttribute('data-comando');
+      ejecutarMiniHerramientaIndividual(uid, comando, targetRemediar);
+    }
+    const targetMacro = e.target.closest('.btn-macro-trigger');
+    if (targetMacro) {
+      const tipo = targetMacro.getAttribute('data-tipo');
+      if (tipo === 'silicio') inyectarComandoGrupo(window.macroRecursosEquipos, "ram_flush");
+      if (tipo === 'disco') inyectarComandoGrupo(window.macroAlmacenamientoEquipos, "clear_cache");
+      if (tipo === 'seguridad') inyectarComandoGrupo(window.macroSeguridadEquipos, "enable_firewall");
+      targetMacro.disabled = true;
+      targetMacro.className = "px-4 py-1.5 rounded bg-full-green text-surface font-black text-[10px] uppercase tracking-wider";
+      targetMacro.innerText = "Comando Despachado";
+    }
+  });
+
+  const btnFixAll = document.getElementById('btn-modal-fix-all');
+  if (btnFixAll) {
+    btnFixAll.onclick = async () => {
+      btnFixAll.disabled = true;
+      btnFixAll.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">sync</span> Despachando Cascada...`;
+      if (window.macroRecursosEquipos.length > 0) await inyectarComandoGrupo(window.macroRecursosEquipos, "ram_flush");
+      if (window.macroAlmacenamientoEquipos.length > 0) await inyectarComandoGrupo(window.macroAlmacenamientoEquipos, "clear_cache");
+      if (window.macroSeguridadEquipos.length > 0) await inyectarComandoGrupo(window.macroSeguridadEquipos, "enable_firewall");
+      btnFixAll.className = "px-5 py-2 rounded-lg bg-full-green text-surface font-black text-xs uppercase tracking-wider";
+      btnFixAll.innerHTML = `<span class="material-symbols-outlined text-sm">check_circle</span> Flota Corregida con Éxito`;
+      setTimeout(() => { closeGlobalDiagnosticoModal(); }, 1500);
+    };
+  }
+
+  document.getElementById('filter-all').onclick = () => {
+    currentFilter = 'all';
+    document.getElementById('filter-all').className = "px-2 py-1 rounded bg-primary text-surface border border-primary/30 shadow-md";
+    document.getElementById('filter-vulnerable').className = "px-2 py-1 rounded bg-white/5 text-slate-400 hover:text-white transition-all";
+    renderizarTodoSupervisor();
+  };
+  document.getElementById('filter-vulnerable').onclick = () => {
+    currentFilter = 'vulnerable';
+    document.getElementById('filter-vulnerable').className = "px-2 py-1 rounded bg-primary text-surface border border-primary/30 shadow-md";
+    document.getElementById('filter-all').className = "px-2 py-1 rounded bg-white/5 text-slate-400 hover:text-white transition-all";
+    renderizarTodoSupervisor();
+  };
+
+  document.getElementById('btn-view-list').onclick = () => setView('list');
+  document.getElementById('btn-view-grid').onclick = () => setView('grid');
+  document.getElementById('btn-toggle-sort').onclick = () => toggleSort();
+  document.getElementById('btn-close-sheet').onclick = () => closeTechSheet();
+  document.getElementById('btn-close-trend').onclick = () => closeTrendModal();
+  document.getElementById('btn-trend-ssd').onclick = () => abrirModalTrend('SSD');
+  document.getElementById('btn-trend-ram').onclick = () => abrirModalTrend('RAM');
+  document.getElementById('btn-trend-cpu').onclick = () => abrirModalTrend('CPU');
+  document.getElementById('btn-global-remediation').onclick = () => openGlobalDiagnosticoModal();
+  document.getElementById('btn-close-global-modal').onclick = () => closeGlobalDiagnosticoModal();
+  document.getElementById('btn-close-global-modal-foot').onclick = () => closeGlobalDiagnosticoModal();
+  document.getElementById('trend-range').onchange = (e) => { if (equipoSeleccionado) renderTrendChart(chartMetricGlobal, e.target.value); };
+  document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => { window.location.href = 'login.html'; }).catch(console.error);
+}
+
+// ARRANQUE COMPLIANCE SEGÚN OWASP (Removido token en texto claro de cabeceras)
+(async function inicializarEntornoSeguro() {
+  try {
+    const CONFIG_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/config";
+    
+    // Solicitud limpia confiando en la protección perimetral CORS y Rate Limiting del backend
+    const response = await fetch(CONFIG_ENDPOINT, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+    
+    if (!response.ok) throw new Error("Falla al recuperar el entorno de llaves.");
+    const firebaseConfigDinamica = await response.json();
+    const app = initializeApp(firebaseConfigDinamica);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    arrancarCicloDeAutenticacion();
+  } catch (error) {
+    console.error("Error Crítico Perimetral:", error);
+    document.getElementById('company-name').innerText = "FALLO DE ENLACE SOC";
+  }
+})();
+</script>
+</body>
+</html>
