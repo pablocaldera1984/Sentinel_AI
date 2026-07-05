@@ -6,7 +6,7 @@ import time
 import hmac
 import hashlib
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, escape
 import firebase_admin
 from firebase_admin import credentials, firestore, auth as firebase_auth
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -15,6 +15,7 @@ import holidays
 from google import genai
 from google.genai import types
 import threading
+
 
 # INYECCIONES DE SEGURIDAD ESTÁNDAR OWASP ASVS
 from flask_limiter import Limiter
@@ -1412,8 +1413,10 @@ def api_forense_remediacion_real():
         return jsonify({"status": "error", "message": "No se pudo mapear el ticket asociado para la notificación."}), 404
         
     except Exception as e:
+        # Mantienes el detalle para tus logs internos de Cloud Run
         print(f"X Error crítico en ingesta de remediación real: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # Proteges la salida externa para el usuario o bot
+        return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
 
 #
 # INFERENCIA QUIRÚRGICA ROBUSTA (Mapeada con OCSF)
@@ -1737,17 +1740,16 @@ def api_auditoria_360_sincrona():
         reporte_estructurado = analizar_telemetria_360(telemetria_cruda)
         
         if "error" in reporte_estructurado and reporte_estructurado["estado_general"] == "ERROR_ANALISIS":
-            return jsonify({"status": "error", "message": "El motor analítico de Gemini no pudo estructurar la telemetría."}), 500
+            return jsonify({"status": "error", "message": "El motor analítico de Gemini no pudo estructurar la telemetría"}), 400
 
         return jsonify({
             "status": "success",
             "idEquipo": id_equipo,
             "reporte": reporte_estructurado
         }), 200
-        
     except Exception as e:
         print(f"X Falla crítica en canalización /api/auditoria360: {str(e)}")
-        return jsonify({"status": "error", "message": f"Fallo interno en servidor: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
 
 #
 # ENDPOINT DE RECEPCIÓN DFIR /api/forense/ingesta (OWASP ASVS / AIOps LOGGING COMPLIANT)
@@ -1779,13 +1781,15 @@ def api_forense_ingesta():
             hash_digital = resultado_resguardo["hash_verificacion"]
             print(f"[AIOps INCIDENT LOG] [DFIR INDUCTION] Host Target: {id_equipo} | Master Tenant: {empresa_id} | Signature SHA-256: {hash_digital} | Custody Matrix: SECURED_ISO_27037")
             
-            return jsonify({
-                "status": "success",
-                "message": "Artefactos forenses capturados, encapsulados y firmados criptográficamente con éxito.",
-                "hash_cadena_custodia": hash_digital
-            }), 201
-        else:
-            return jsonify({"status": "error", "message": resultado_resguardo.get("message")}), 500
+            # Este es el bloque exitoso (líneas 1782-1786). Lo mantenemos limpio:
+        return jsonify({
+            "status": "success",
+            "message": "Artefactos forenses capturados, encapsulados y firmados criptográficamente con éxito.",
+            "hash_cadena_custodia": hash_digital
+        }), 201
+    else:
+        # Aquí corregimos la vulnerabilidad (línea 1788) cambiando el mensaje dinámico por uno genérico y seguro
+        return jsonify({"status": "error", "message": "Ocurrió un error interno al procesar el resguardo"}), 500
             
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/forense/ingesta: {str(e)}")
@@ -1832,16 +1836,14 @@ def api_forense_analisis_ram():
             print(f"[AIOps ANOMALY LOG] [RAM ANALYSIS] Host Target: {id_equipo} | Status: COMPLETED | Risk Tier: {reporte_forense_ram.get('nivel_riesgo', 'UNKNOWN')}")
         except Exception as err_trace:
             print(f"! Fallo no bloqueante en Decision Tracing Forense: {str(err_trace)}")
+            return jsonify({
+                "status": "error",
+                "message": "Ocurrió un error al procesar el tracing forense"
+            }), 500
             
-        return jsonify({
-            "status": "success",
-            "idEquipo": id_equipo,
-            "reporte": reporte_forense_ram
-        }), 200
-        
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/forense/analisis_ram: {str(e)}")
-        return jsonify({"status": "error", "message": f"Fallo interno en el clúster perimetral forense: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": "Ocurrió un error interno en el clúster perimetral forense"}), 500
 
 # ENDPOINT SÍNCRONO DE RECONSTRUCCIÓN DE ATAQUES (/api/forense/timeline)
 @app.route('/api/forense/timeline', methods=['POST'])
@@ -1888,16 +1890,14 @@ def api_forense_timeline():
             print(f"[AIOps INCIDENT LOG] [TIMELINE] Host Target: {id_equipo} | Status: PROCESSED | Manipulation Level: {reporte_timeline.get('nivel_manipulacion', 'UNKNOWN')} | Governance: ISO_27037_SECURED")
         except Exception as err_trace:
             print(f"! Fallo no bloqueante en Trazabilidad de Timeline: {str(err_trace)}")
+            return jsonify({
+                "status": "error",
+                "message": "Ocurrió un error al procesar la trazabilidad del timeline"
+            }), 500
             
-        return jsonify({
-            "status": "success",
-            "idEquipo": id_equipo,
-            "reporte": reporte_timeline
-        }), 200
-        
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/forense/timeline: {str(e)}")
-        return jsonify({"status": "error", "message": f"Fallo interno en el subsistema forense: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": "Ocurrió un error interno en el subsistema forense"}), 500
 
 # 🟢 PASO 2: ACTUALIZACIÓN DE LA FUNCIÓN DE IA CON MEMORIA HISTÓRICA CONVERSACIONAL (5 MENSAJES)
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
@@ -2023,7 +2023,7 @@ def generar_reporte_diario():
         return jsonify({"status": "success"}), 200
     except Exception as e:
         print(f"X Error en Reporte Diario: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
 
 @app.route('/ejecutar-prospectiva', methods=['POST'])
 def processar_prospectiva_global():
@@ -2092,7 +2092,8 @@ def webhook_whatsapp():
         token = request.args.get('hub.verify_token')
         challenge = request.args.get('hub.challenge')
         if mode == 'subscribe' and token == WHATSAPP_VERIFY_TOKEN:
-            return challenge, 200
+            # Aquí aplicamos escape() para sanitizar el parámetro y solucionar la vulnerabilidad XSS
+            return escape(challenge), 200
         return 'Token incorrecto', 403
         
     # =========================================================================
