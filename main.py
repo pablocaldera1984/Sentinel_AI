@@ -1841,6 +1841,12 @@ def api_forense_analisis_ram():
                 "message": "Ocurrió un error al procesar el tracing forense"
             }), 500
             
+        # === RETORNO DE ÉXITO INTEGRADO ===
+        return jsonify({
+            "status": "success",
+            "reporte": reporte_forense_ram
+        }), 200
+            
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/forense/analisis_ram: {str(e)}")
         return jsonify({"status": "error", "message": "Ocurrió un error interno en el clúster perimetral forense"}), 500
@@ -1894,6 +1900,12 @@ def api_forense_timeline():
                 "status": "error",
                 "message": "Ocurrió un error al procesar la trazabilidad del timeline"
             }), 500
+            
+        # === RETORNO DE ÉXITO INTEGRADO ===
+        return jsonify({
+            "status": "success",
+            "reporte": reporte_timeline
+        }), 200
             
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/forense/timeline: {str(e)}")
