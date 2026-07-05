@@ -62,11 +62,24 @@ limiter = Limiter(
 )
 
 feriados_cl = holidays.CL(years=[datetime.now().year, datetime.now().year + 1])
-TOKEN_META = os.environ.get("TOKEN_META", "")
-META_APP_SECRET = os.environ.get("META_APP_SECRET", "global365_meta_secret_key_2026")
+
+# ==========================================
+# CONFIGURACIÓN DE SEGURIDAD (API META / WHATSAPP)
+# ==========================================
+TOKEN_META = os.environ.get("TOKEN_META")
+if not TOKEN_META:
+    raise ValueError("❌ ERROR CRÍTICO: La variable de entorno 'TOKEN_META' no está configurada.")
+
+META_APP_SECRET = os.environ.get("META_APP_SECRET")
+if not META_APP_SECRET:
+    raise ValueError("❌ ERROR CRÍTICO: La variable de entorno 'META_APP_SECRET' no está configurada.")
+
+WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN")
+if not WHATSAPP_VERIFY_TOKEN:
+    raise ValueError("❌ ERROR CRÍTICO: La variable de entorno 'WHATSAPP_VERIFY_TOKEN' no está configurada.")
+
 ID_TELEFONO_META = "1175775235621587"
 URL_META = f"https://graph.facebook.com/v19.0/{ID_TELEFONO_META}/messages"
-WHATSAPP_VERIFY_TOKEN = "sentinel_secret_token"
 
 # =========================================================================
 # 🔒 CENTRALIZACIÓN ATÓMICA DEL PATRÓN GUARDIÁN (EJECUCIÓN DE MEJOR PRÁCTICA)
