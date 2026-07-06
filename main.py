@@ -16,7 +16,6 @@ from google import genai
 from google.genai import types
 import threading
 
-
 # INYECCIONES DE SEGURIDAD ESTÁNDAR OWASP ASVS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -39,13 +38,14 @@ except Exception as err_init:
     db = None
 
 app = Flask(__name__)
+
 # --- INICIO DEL ESCUDO CORS GLOBAL ---
 @app.before_request
 def handle_options():
     if request.method == 'OPTIONS':
-        # Permite la petición de comprobación del navegador
         return '', 200
 # --- FIN DEL ESCUDO CORS GLOBAL ---
+
 # Capa 2: Forzar Cabeceras de Seguridad HTTP con Flask-Talisman (HSTS, CSP, X-Frame-Options)
 Talisman(app, force_https=True, session_cookie_secure=True)
 
@@ -146,7 +146,7 @@ guardian_registry.registrar_herramienta("ok", None, "Usa este comando si las mé
 LISTA_BLANCA_HERRAMIENTAS = guardian_registry.lista_blanca
 MAPEO_REF_FUNCIONES = guardian_registry.mapeo_funciones
 
-# ESQUEMA ESTRICTO PARA EL REPORTE JSON DE AUDITORÍA GENERAL (Req 1)
+# ESQUEMA ESTRICTO PARA EL REPORTE JSON DE AUDITORÍA GENERAL
 esquema_auditoria = types.Schema(
     type="OBJECT",
     properties={
@@ -168,7 +168,6 @@ esquema_auditoria = types.Schema(
             description="Alteraciones archivo hosts, ASEPs no firmados, beaconing TCP"
         ),
         "recomendacion_ejecutiva": types.Schema(type="STRING"),
-        # Campos ocultos de backend para Chain of Thought y cumplimiento regulatorio:
         "razonamiento_interno": types.Schema(type="STRING", description="Análisis profundo y justificación técnica de la decisión (Chain of Thought)"),
         "tecnica_mitre": types.Schema(type="STRING", description="ID y nombre de la técnica MITRE ATT&CK detectada (ej. T1078 - Valid Accounts)")
     },
@@ -221,7 +220,7 @@ esquema_timeline_forense = types.Schema(
     required=["timeline_cronologica", "anomalias_antiforenses", "nivel_manipulacion", "dictamen_forense"]
 )
 
-# ESQUEMA ESTRICTO JSON PARA MÓDULO ITDR (IDENTITY THREAT DETECTION & RESPONSE) (Req 1)
+# ESQUEMA ESTRICTO JSON PARA MÓDULO ITDR (IDENTITY THREAT DETECTION & RESPONSE)
 esquema_itdr = types.Schema(
     type="OBJECT",
     properties={
@@ -233,14 +232,13 @@ esquema_itdr = types.Schema(
             description="Lista de vectores encontrados (Viajes imposibles, bypass MFA, fatiga, secuestro de sesión)"
         ),
         "accion_sugerida": types.Schema(type="STRING", description="Acción táctica inmediata para contención en el plano de identidad"),
-        # Campos ocultos de backend para Chain of Thought y cumplimiento regulatorio:
         "razonamiento_interno": types.Schema(type="STRING", description="Justificación y análisis lógico agéntico del nivel de riesgo determinado"),
         "tecnica_mitre": types.Schema(type="STRING", description="Identificador MITRE ATT&CK (ej. T1110 - Brute Force o ASI03)")
     },
     required=["compromiso_identidad", "nivel_riesgo", "anomalias_detectadas", "accion_sugerida", "razonamiento_interno", "tecnica_mitre"]
 )
 
-# ESQUEMA ESTRICTO JSON PARA MÓDULO EASM (EXTERNAL ATTACK SURFACE MANAGEMENT) (Req 1)
+# ESQUEMA ESTRICTO JSON PARA MÓDULO EASM (EXTERNAL ATTACK SURFACE MANAGEMENT)
 esquema_easm = types.Schema(
     type="OBJECT",
     properties={
@@ -257,7 +255,6 @@ esquema_easm = types.Schema(
             description="Logs que consolidan ráfagas inusuales de autenticación o intrusiones exitosas en túneles VPN/Firewall"
         ),
         "accion_sugerida": types.Schema(type="STRING", description="Instrucción táctica de contención y mitigación de borde"),
-        # Campos ocultos de backend para Chain of Thought y cumplimiento regulatorio:
         "razonamiento_interno": types.Schema(type="STRING", description="Análisis determinista perimetral de vectores expuestos expuesto WAN"),
         "tecnica_mitre": types.Schema(type="STRING", description="Mapeo de matriz MITRE (ej. T1190 - Exploit Public-Facing Application)")
     },
@@ -290,7 +287,6 @@ DICCIONARIO_AMENAZAS_AMIGABLES = {
     "ITDR": "Un intento de acceso sospechoso o posible robo de credenciales corporativas en las cuentas cloud,",
     "EASM": "Una vulnerabilidad o brecha de seguridad detectada en el escudo perimetral de internet de la empresa,",
     "FINOPS_ANOMALY": "Un comportamiento ineficiente en el uso de recursos lógicos o licencias ociosas,",
-    # 🟢 SIMULACIÓN 11: Identidad como Perímetro (Helpdesk)
     "HELPDESK_COMPROMISE": "Un reseteo sospechoso de accesos en el soporte técnico seguido de inicios de sesión simultáneos vía Single Sign-On (SSO),"
 }
 
@@ -306,12 +302,11 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
     "ITDR": "Las sesiones comprometidas fueron revocadas de inmediato y se aplicó un bloqueo preventivo en la cuenta cloud,",
     "EASM": "Se bloquearon las IPs atacantes y se reforzó el escudo del firewall perimetral de la empresa,",
     "FINOPS_ANOMALY": "Se optimizaron los perfiles de energía y se liberaron las suscripciones ociosas recuperando la eficiencia presupuestaria,",
-    # 🟢 SIMULACIÓN 11: Remediación de Identidad
     "HELPDESK_COMPROMISE": "Las credenciales afectadas fueron revocadas de inmediato, cerrando las sesiones activas en la nube y bloqueando el abuso de identidad digital,"
 }
 
 # =========================================================================
-# 🟢 MAESTRO UNIVERSAL DE ACCIONES A LENGUAJE NATURAL (WHATSAPP UX - 100% COBERTURA)
+# 🟢 MAESTRO UNIVERSAL DE ACCIONES A LENGUAJE NATURAL (WHATSAPP UX)
 # =========================================================================
 DICCIONARIO_ACCIONES_AMIGABLES = {
     "aislar_equipo": {"singular": "aislar el equipo", "plural": "aislar los equipos"},
@@ -342,13 +337,11 @@ DICCIONARIO_ACCIONES_AMIGABLES = {
     "ok": {"singular": "mantener el estado de supervisión normal", "plural": "mantener la flota bajo monitoreo continuo estándar"}
 }
 
-# Inserción de Helper táctico para humanizar caídas de texto plano largas procedentes del LLM/Inferencia
 def obtener_accion_humana_segura(comando_raw: str, tipo_numero: str = "singular") -> str:
     comando_key = str(comando_raw).strip().lower()
     if comando_key in DICCIONARIO_ACCIONES_AMIGABLES:
         return DICCIONARIO_ACCIONES_AMIGABLES[comando_key].get(tipo_numero, comando_raw)
         
-    # 🟢 COBERTURA EXTENDIDA 100%: Mapeo semántico para contenciones de red, USB, Firewall y Cloud
     if any(keyword in comando_key for keyword in ["backdoor", "firmware", "vpn", "perimetral", "easm"]):
         return "cerrar el acceso oculto detectado en la red y actualizar la seguridad"
     if any(keyword in comando_key for keyword in ["shadow", "ai", "ollama", "lmstudio"]):
@@ -367,13 +360,8 @@ def obtener_accion_humana_segura(comando_raw: str, tipo_numero: str = "singular"
     return "aplicar la contención preventiva de seguridad estándar"
 
 def simular_resolucion_automatica_whatsapp(id_equipo, amenaza_key, tkt_id, telefono_supervisor):
-    """
-    Rutina asíncrona exclusiva para la simulación.
-    Emula el reporte del agente local al remitente que aprobó la acción (Supervisor o Administrador).
-    """
     try:
-        telefono_destino = telefono_supervisor # Fallback por defecto
-        
+        telefono_destino = telefono_supervisor
         if db:
             tkt_doc = db.collection("tickets_hitl").document(tkt_id).get()
             if tkt_doc.exists:
@@ -381,16 +369,13 @@ def simular_resolucion_automatica_whatsapp(id_equipo, amenaza_key, tkt_id, telef
                 estado_actual = tkt_data.get("estado", "")
                 aprobado_por = tkt_data.get("aprobado_por")
                 
-                # 1. Si sigue pendiente de aprobación a los 2 minutos, expiró silenciosamente
                 if estado_actual == "pendiente_aprobacion_hitl":
                     print(f"[AIOps SIMULATION] Ticket {tkt_id} expiró sin respuesta. El escalamiento sigue activo.")
                     return
-                # 2. Si fue rechazado, no hay acción
                 elif estado_actual == "rechazado":
                     print(f"[AIOps SIMULATION] Ticket {tkt_id} fue rechazado. No se ejecuta contención.")
                     return
                 
-                # 3. Si fue aprobado, redirigimos el mensaje de éxito a quien presionó el botón
                 if aprobado_por:
                     telefono_destino = aprobado_por
                     
@@ -496,10 +481,6 @@ def analizar_volcado_ram(datos_plugins: dict) -> dict:
 
 # SKILL FORENSE COGNITIVA (analizar_artefactos_timeline)
 def analizar_artefactos_timeline(datos_artefactos: dict) -> dict:
-    """
-    Utiliza Gemini 2.5 Flash para reconstruir el timeline del ataque a través de artefactos web
-    y auditar atributos MACE cazando manipulaciones temporales de tipo Anti-Forense (TimeStomp).
-    """
     prompt_timeline = f"""
     Eres Sentinel AI, un experto en Computación Forense y Analista DFIR de élite.
     Evalúa el siguiente conjunto de artefactos de navegación y marcas de tiempo extraídos de la máquina compromised:
@@ -534,13 +515,8 @@ def analizar_artefactos_timeline(datos_artefactos: dict) -> dict:
             "dictamen_forense": "Fallo crítico al invocar las capacidades cognitivas del motor forense."
         }
 
-# SKILL DE IA CLOUD IDENTITY (analizar_identidad_cloud) (Evolución ITDR - Req 2)
+# SKILL DE IA CLOUD IDENTITY (analizar_identidad_cloud)
 def analizar_identidad_cloud(logs_identidad: dict) -> dict:
-    """
-    Utiliza Gemini 2.5 Flash para auditar logs de sesión y autenticación en la nube.
-    Busca anomalías avanzadas de tipo ITDR, enfocándose en el abuso de procesos de Helpdesk
-    y secuestro de tokens lógicos Single Sign-On (SSO).
-    """
     prompt_itdr_instruction = f"""
     Actúas como Sentinel AI, analista especializado en Seguridad de Identidad e Ingeniero de Respuesta ITDR de Global365.
     Evalúa minuciosamente el siguiente bloque de registros e historiales de sesión cloud provenientes de los paneles de administración SaaS:
@@ -573,18 +549,14 @@ def analizar_identidad_cloud(logs_identidad: dict) -> dict:
         return {
             "compromiso_identidad": False,
             "nivel_riesgo": "ERROR_ANALISIS",
-            "anomalias_detectadas": [f"Fallo en motor de inferencia cloud: {str(e)}"],
+            "anomalias_detectadas": [f"Fallo en motor de inference cloud: {str(e)}"],
             "accion_sugerida": "Verificar de forma manual la estabilidad de la API del panel perimetral de identidad.",
             "razonamiento_interno": "Fallo catastrófico en la llamada cognitiva.",
-            "tecnica_mitre": "ASI00"
+            "tecnica_mitre": "ASI03"
         }
         
-# 🟢 PASO 2: NUEVA SKILL DE IA PERIMETRAL EASM (analizar_superficie_externa)
+# 🟢 NUEVA SKILL DE IA PERIMETRAL EASM (analizar_superficie_externa)
 def analizar_superficie_externa(logs_syslog: dict) -> dict:
-    """
-    Utiliza Gemini 2.5 Flash para procesar de forma experta cadenas de Syslogs procedentes de firewalls,
-    VPNs y concentradores edge de hardware. Detecta vectores avanzados de intrusión externa y CVEs sin agente local.
-    """
     prompt_easm_instruction = f"""
     Actúas como Sentinel AI, Ingeniero de Superficie de Ataque Externa (EASM) y Analista SOC Senior de Global365.
     Examina de forma pericial y correlaciona el siguiente conjunto estructurado de Syslogs e historiales de tráfico perimetral de borde:
@@ -673,7 +645,6 @@ def enmascarar_telemetria(datos: dict) -> dict:
             for llave_ip in ["ip_privada", "ip_publica", "gateway_ip"]:
                 if llave_ip in datos_limpios["conectividad_red"]:
                     ip_raw = str(datos_limpios["conectividad_red"][llave_ip])
-                    # 🟢 CORRECCIÓN: Se elimina el escape incorrecto de la barra invertida en el símbolo $
                     datos_limpios["conectividad_red"][llave_ip] = re.sub(r'\.\d+$', '.XXX', ip_raw)
         return datos_limpios
     except Exception as e:
@@ -681,10 +652,6 @@ def enmascarar_telemetria(datos: dict) -> dict:
         return datos
 
 def validar_session_firebase(request):
-    """
-    Valida criptográficamente el JWT de Firebase Auth entrante.
-    Retorna los datos decodificados del usuario si es válido, o levanta una excepción.
-    """
     token = None
     try:
         datos_json = request.get_json(silent=True)
@@ -701,33 +668,25 @@ def validar_session_firebase(request):
     if not token:
         raise ValueError("Token de autenticación ausente.")
 
-    # Validación criptográfica real contra Google Cloud / Firebase Master
     datos_usuario_decodificados = firebase_auth.verify_id_token(token)
     return datos_usuario_decodificados
 
 def limpiar_identificador_usuario(id_equipo_raw: str) -> str:
-    """
-    Busca de forma proactiva en las colecciones de producción de Firebase para mapear el host
-    a un nombre legible. Resuelve infraestructura y limpia hostnames.
-    """
     if not id_equipo_raw:
         return "Equipo Desconocido"
         
     id_clean = str(id_equipo_raw).strip().upper()
     
-    # Blindaje UX para simulación o telemetría perimetral sin agente
     if any(keyword in id_clean for keyword in ["EDGE", "HARDWARE", "GATEWAY", "FIREWALL"]):
         return "*Red Perimetral / Servidor Central*"
         
     if db:
         try:
-            # 1. Intentar resolver en auditoria_sandbox
             doc_sb = db.collection("auditoria_sandbox").document(id_clean).get()
             if doc_sb.exists:
                 nombre = doc_sb.to_dict().get("nombre_usuario") or doc_sb.to_dict().get("usuario")
                 if nombre: return f"*{str(nombre).title()}*"
                 
-            # 2. Intentar resolver en auditoria_global
             doc_gb = db.collection("auditoria_global").document(id_clean).get()
             if doc_gb.exists:
                 nombre = doc_gb.to_dict().get("nombre_usuario") or doc_gb.to_dict().get("usuario")
@@ -735,7 +694,6 @@ def limpiar_identificador_usuario(id_equipo_raw: str) -> str:
         except Exception as err_id:
             print(f"! Fallo no bloqueante al rastrear identidad de hardware: {str(err_id)}")
 
-    # Fallback clásico: Quitar prefijos GLOBAL365
     id_limpio = re.sub(r'^(GLOBAL365_[A-Za-z0-9]+_[A-Za-z0-9]+_|^GLOBAL365_)', '', id_clean, flags=re.IGNORECASE)
     return id_limpio.strip().upper()
 
@@ -749,10 +707,10 @@ estado actual y la proyección futura (prospección) del computador seleccionado
 por el supervisor corporativo, correlacionando múltiples variables de telemetría,
 OCSF, postura de seguridad, Finops Y Sostenibilidad para activar comandos HITL.
 
-🚨 REGLA RÍGIDA DE SEGURIDAD (ENDURECIMIENTO DEL PATRÓN GUARDIÁN - Req 4):
+🚨 REGLA RÍGIDA DE SEGURIDAD (ENDURECIMIENTO DEL PATRÓN GUARDIÁN):
 Tienes ESTRICTAMENTE PROHIBIDO inventar herramientas, sugerir mini-herramientas que no existan, ejecutar código externo o descargar payloads que no pertenezcan al listado explícito adjunto. Si la telemetría no encaja en ninguna acción de mitigación, debes retornar obligatoriamente el comando por defecto 'ok'.
 
-📈 REGLA DE RENDIMIENTO DEX Y SLO PREDICTIVO (Req 3):
+📈 REGLA DE RENDIMIENTO DEX Y SLO PREDICTIVO:
 No evalúes métricas de hardware de forma aislada o reactiva. Debes aplicar el concepto de 'SLO Predictivo'. Si detectas una fuga de memoria (RAM libre disminuyendo), temperaturas de CPU elevadas de forma sostenida con estrangulamiento térmico activo, o degradación del disco, debes estimar matemáticamente en tu diagnóstico un tiempo crítico de colapso de la estación (ej. 'El entorno de trabajo colaspará en un estimado de 3 horas si la fuga de memoria persiste') e invocar la contención preventiva adecuada de forma proactiva.
 
 REGLAS DE CORRELACIÓN DE SEGURIDAD (AGENTIC SOC):
@@ -896,12 +854,7 @@ def registrar_evidencia_forense(id_equipo: str, empresa_id: str, artefactos: dic
         print(f"X Error en manejador interno DFIR registrar_evidencia_forense: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-#  PASO 2: NUEVA FUNCIÓN DE NOTIFICACIÓN DUAL CHATOPS HITL WITH ASYNC ESCALATION
 def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
-    """
-    Rutina asíncrona de escalamiento (Fijado estrictamente a 60 segundos por diseño SOC).
-    Verifica si el supervisor omitió la alerta para despachar la contención al Administrador.
-    """
     try:
         if db:
             tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
@@ -913,16 +866,13 @@ def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
                     comando_sugerido = tkt_data.get("comando_sugerido", "")
                     empresa = tkt_data.get("empresa_id", "GLOBAL365").upper()
                     
-                    # 🔒 Formateo UX sin paréntesis y con limpieza de identidad real
                     amenaza_amigable = DICCIONARIO_AMENAZAS_AMIGABLES.get(incidente_raw, incidente_raw)
                     entorno_limpio = limpiar_identificador_usuario(id_equipo)
                     
-                    # Selección dinámica Singular / Plural
                     es_plural = any(palabra in str(id_equipo).upper() for palabra in ["CLOUD", "SAAS", "IDENTITY", "FLOTA", "HARDWARE"])
                     type_num = "plural" if es_plural else "singular"
                     accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
                     
-                    # 🟢 TÍTULO COMPACTADO: Diseñado a la medida para no generar dobles líneas en pantallas de 6.1"
                     texto_escalamiento = (
                         f"⚠️ *URGENTE* ⚠️\n"
                         f"Te notifico porque el supervisor de *{empresa}* no respondió a una alerta crítica en el último minuto.\n\n"
@@ -935,10 +885,6 @@ def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
         print(f"X Error en hilo asíncrono de escalamiento: {str(e)}")
 
 def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sugerido: str, telefono_supervisor: str, telefono_admin: str, coleccion_origen: str = COLECCION_TELEMETRIA, empresa_id: str = "GLOBAL365") -> str:
-    """
-    Registra el requerimiento en Firestore e inicia el flujo estructurado de ChatOps.
-    Envía botones interactivos en primera instancia únicamente al Supervisor.
-    """
     try:
         tkt_id = f"TKT-{int(time.time() * 1000) % 10000:04d}"
         if db:
@@ -954,33 +900,25 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
                 "timestamp_creacion": firestore.SERVER_TIMESTAMP
             })
             
-        # 1. Traducimos la amenaza (Sin paréntesis de origen)
         amenaza_amigable = DICCIONARIO_AMENAZAS_AMIGABLES.get(amenaza, amenaza)
-        
-        # 2. Limpieza de Identificación de Usuario (Solo Nombre y Apellido desde DB o fallbacks)
         entorno_limpio = limpiar_identificador_usuario(id_equipo)
             
-        # 3. Lógica Dinámica de Acción Humana Corta y Directa sin tecnicismos largos
         es_plural = any(palabra in str(id_equipo).upper() for palabra in ["CLOUD", "SAAS", "IDENTITY", "FLOTA", "HARDWARE"])
         type_num = "plural" if es_plural else "singular"
         accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
             
-        # 4. Construcción del Mensaje Fluido (Negritas activas sin recuadros grises)
         mensaje_base = (
             f"🚨 *ALERTA DE MONITOREO* 🚨\n"
             f"Nuestro sistema detectó un comportamiento inusual: *{amenaza_amigable}* que afecta al entorno de {entorno_limpio}.\n\n"
             f"Como medida preventiva, te sugiero *{accion_humana}* de inmediato (Ticket: {tkt_id}). ¿Me autorizas a ejecutar esta protección ahora mismo?"
         )
         
-        # Envío INICIAL exclusivo al Supervisor
         enviar_botones_whatsapp(telefono_supervisor, mensaje_base, tkt_id)
         print(f"[AIOps HITL LOG] Ticket {tkt_id} enviado a Supervisor {telefono_supervisor}. Temporizador de escalamiento fijado en 60s...")
         
-        # ⏱️ Hilo 1: Matriz de Escalamiento Asíncrono al Administrador (Ajustado exactamente a 60 segundos / 1 minuto)
         timer_escalamiento = threading.Timer(60.0, esclalar_alerta_admin_hitl, args=[tkt_id, telefono_admin])
         timer_escalamiento.start()
         
-        # ⏱️ Hilo 2: Emulación de Cierre para el Entorno de Simulación (Ajustado a 120 segundos / 2 minutos para dar margen)
         timer_cierre = threading.Timer(120.0, simular_resolucion_automatica_whatsapp, args=[id_equipo, amenaza, tkt_id, telefono_supervisor])
         timer_cierre.start()
         
@@ -989,11 +927,13 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
         print(f"X Error al inicializar ChatOps interactivo: {str(e)}")
         return "ERR_TKT"
 
-# ENDPOINT SÍNCRONO DE ANÁLISIS DE IDENTIDAD ITDR (/api/itdr/analisis)
+# =========================================================================
+# 🟢 ENDPOINTS DE ANÁLISIS DE IDENTIDAD ITDR Y SUPERFICIE EASM
+# =========================================================================
+
 @app.route('/api/itdr/analisis', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per minute")
 def api_itdr_analisis():
-    # Bypass táctico para aprobar el Preflight CORS del navegador inmediatamente
     if request.method == 'OPTIONS':
         return jsonify({"status": "preflight_ok"}), 200
         
@@ -1032,7 +972,6 @@ def api_itdr_analisis():
         except Exception as err_trace:
             print(f"! Fallo no bloqueante en Trazabilidad ITDR: {str(err_trace)}")
             
-        # Orquestación ChatOps: Extracción de métricas críticas y disparo de Alerta HITL WhatsApp
         try:
             tel_supervisor = "DESCONOCIDO"
             tel_admin = "DESCONOCIDO"
@@ -1067,11 +1006,10 @@ def api_itdr_analisis():
         print(f"X Caída catastrófica controlada en endpoint /api/itdr/analisis: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo interno en el túnel perimetral ITDR: {str(e)}"}), 500
 
-# 🟢 PASO 3: ENDPOINT SÍNCRONO DE ANÁLISIS PERIMETRAL EASM (/api/easm/analisis)
+
 @app.route('/api/easm/analisis', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per minute")
 def api_easm_analisis():
-    # Bypass táctico para aprobar el Preflight CORS del navegador inmediatamente
     if request.method == 'OPTIONS':
         return jsonify({"status": "preflight_ok"}), 200
         
@@ -1110,7 +1048,6 @@ def api_easm_analisis():
         except Exception as err_trace:
             print(f"! Fallo no bloqueante en Trazabilidad o Logging EASM: {str(err_trace)}")
             
-        # Orquestación ChatOps: Extracción de métricas críticas y disparo de Alerta HITL WhatsApp
         try:
             tel_supervisor = "DESCONOCIDO"
             tel_admin = "DESCONOCIDO"
@@ -1145,244 +1082,87 @@ def api_easm_analisis():
         print(f"X Caída catastrófica controlada en endpoint /api/easm/analisis: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo interno en el clúster analítico EASM: {str(e)}"}), 500
 
-# =========================================================================
-# 🟢 NUEVOS 8 ENDPOINTS DE SIMULACIÓN (CORREGIDOS PARA TRADUCCIÓN DE LENGUAJE)
-# =========================================================================
-
-@app.route('/api/ransomware/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_ransomware_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error", "message": "Base de datos fuera de línea."}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error", "message": "Firma criptográfica inválida."}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="COMBINACION_TOXICA", comando_sugerido="aislar_equipo",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/shadowai/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_shadowai_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="SHADOW_AI", comando_sugerido="bloquear_shadow_ai",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
-
-@app.route('/api/phishing/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_phishing_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="PHISHING_DNS", comando_sugerido="aislar_equipo",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
-
-@app.route('/api/finops/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_finops_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="FINOPS_ANOMALY", comando_sugerido="evaluar_roi_y_renovacion_pc",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
-
-@app.route('/api/hijack/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_hijack_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="AGENT_HIJACK", comando_sugerido="aislar_equipo",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
-
-@app.route('/api/mfafatigue/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_mfa_fatigue_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="MFA_FATIGUE", comando_sugerido="auditar_identidad_cloud",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
-
-@app.route('/api/dex/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_dex_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="DEX_DEGRADATION", comando_sugerido="evaluar_roi_y_renovacion_pc",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
-
-@app.route('/api/fileless/analisis', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per minute")
-def api_fileless_analisis():
-    if request.method == 'OPTIONS': return jsonify({"status": "preflight_ok"}), 200
-    try:
-        if not db: return jsonify({"status": "error"}), 503
-        datos_solicitud = request.get_json()
-        token_val = datos_solicitud.get("token_validacion")
-        empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-        id_equipo = datos_solicitud.get("idEquipo")
-
-        try: firebase_auth.verify_id_token(token_val)
-        except: return jsonify({"status": "error"}), 403
-
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-
-        solicitar_aprobacion_hitl_whatsapp(
-            id_equipo=id_equipo, amenaza="FILELESS_ATTACK", comando_sugerido="aislar_equipo",
-            telefono_supervisor=tel_supervisor, telefono_admin=tel_admin, 
-            coleccion_origen=COLECCION_TELEMETRIA, empresa_id=empresa_id
-        )
-        return jsonify({"status": "success"}), 200
-    except Exception as e: return jsonify({"status": "error"}), 500
 
 # =========================================================================
-# 🟢 ENDPOINT REAL DE PRODUCCIÓN: REPORTE DE REMEDIACIÓN EXITOSA AGENTE SENTINEL
+# 🟢 CONSTRUCTOR DINÁMICO DE ENDPOINTS DE ANÁLISIS (MITIGACIÓN PUNTO 7 - DRY)
+# =========================================================================
+
+def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
+    """
+    Genera y registra dinámicamente endpoints de análisis de amenazas en Flask.
+    Reduce la redundancia del código y unifica la lógica de auditoría perimetral.
+    """
+    @app.route(f'/api/{endpoint_name}/analisis', methods=['POST', 'OPTIONS'], endpoint=f'api_{endpoint_name}_analisis')
+    @limiter.limit("5 per minute")
+    def api_analisis_dinamico():
+        if request.method == 'OPTIONS': 
+            return jsonify({"status": "preflight_ok"}), 200
+        try:
+            if not db: return jsonify({"status": "error", "message": "Base de datos fuera de línea."}), 503
+                
+            datos_solicitud = request.get_json() or {}
+            token_val = datos_solicitud.get("token_validacion")
+            empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
+            id_equipo = datos_solicitud.get("idEquipo")
+
+            try: 
+                firebase_auth.verify_id_token(token_val)
+            except: 
+                return jsonify({"status": "error", "message": "Firma criptográfica inválida."}), 403
+
+            tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
+            
+            sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
+            for d in sup_ref: 
+                tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+                
+            adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
+            for d in adm_ref: 
+                tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+
+            solicitar_aprobacion_hitl_whatsapp(
+                id_equipo=id_equipo, 
+                amenaza=amenaza_key, 
+                comando_sugerido=comando_key,
+                telefono_supervisor=tel_supervisor, 
+                telefono_admin=tel_admin, 
+                coleccion_origen=COLECCION_TELEMETRIA, 
+                empresa_id=empresa_id
+            )
+            return jsonify({"status": "success"}), 200
+            
+        except Exception as e: 
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+# REGISTER AUTOMÁTICO MAESTRO DE LOS 8 COMPONENTES DE FLOTA
+CONFIGURACION_AMENAZAS = [
+    ("ransomware", "COMBINACION_TOXICA", "aislar_equipo"),
+    ("shadowai",   "SHADOW_AI",         "bloquear_shadow_ai"),
+    ("phishing",   "PHISHING_DNS",      "aislar_equipo"),
+    ("finops",     "FINOPS_ANOMALY",    "evaluar_roi_y_renovacion_pc"),
+    ("hijack",     "AGENT_HIJACK",      "aislar_equipo"),
+    ("mfafatigue", "MFA_FATIGUE",       "auditar_identidad_cloud"),
+    ("dex",        "DEX_DEGRADATION",   "evaluar_roi_y_renovacion_pc"),
+    ("fileless",   "FILELESS_ATTACK",   "aislar_equipo")
+]
+
+for ruta, amenaza, comando in CONFIGURACION_AMENAZAS:
+    crear_endpoint_analisis(ruta, amenaza, comando)
+
+
+# =========================================================================
+# 🟢 ENDPOINT REAL DE PRODUCCIÓN: REPORTE DE REMEDIACIÓN AGENTE SENTINEL
 # =========================================================================
 @app.route('/api/forense/remediacion', methods=['POST'])
 @limiter.limit("30 per minute")
 def api_forense_remediacion_real():
     try:
         auth_token = request.headers.get("X-Sentinel-Agent-Token")
-        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN", "global365_dfir_agent_secret_key_2026")
+        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN")
         
+        if not token_esperado:
+            return jsonify({"status": "error", "message": "Servicio de validación de agente no configurado."}), 500
+            
         if not auth_token or auth_token != token_esperado:
             return jsonify({"status": "error", "message": "Acceso Denegado: Token de Agente local inválido."}), 401
             
@@ -1426,14 +1206,13 @@ def api_forense_remediacion_real():
         return jsonify({"status": "error", "message": "No se pudo mapear el ticket asociado para la notificación."}), 404
         
     except Exception as e:
-        # Mantienes el detalle para tus logs internos de Cloud Run
         print(f"X Error crítico en ingesta de remediación real: {str(e)}")
-        # Proteges la salida externa para el usuario o bot
         return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
 
-#
+
+# =========================================================================
 # INFERENCIA QUIRÚRGICA ROBUSTA (Mapeada con OCSF)
-#
+# =========================================================================
 def generar_insight_quirurgico(pc_data):
     api_key_studio = os.environ.get("GEMINI_API_KEY")
     client = genai.Client(api_key=api_key_studio)
@@ -1446,7 +1225,6 @@ def generar_insight_quirurgico(pc_data):
     
     cpu_pct = float(pc_data_anonima.get('estado_actual', {}).get('cpu_pct', 0))
     
-    # 🟢 CORRECCIÓN: Se añade 'evaluar_radio_explosion' de forma explícita al arsenal activo del modelo
     herramientas_disponibles = [
         analizar_historico_y_seguridad,
         predecir_ruta_ataque,
@@ -1498,7 +1276,6 @@ def generar_insight_quirurgico(pc_data):
                 f"Por favor, actúa como analista SOC senior, especialista Finops y consultor de Sostenibilidad. Invoca las herramientas adecuadas basándote en la telemetría OCSF de hardware de silicio Y empaqueta el JSON final."
             )
             
-            # Primera llamada donde la IA ejecuta su Cadena de Pensamiento (Chain of Thought)
             chat.send_message(prompt_ejecucion)
             
             esquema_salida = types.Schema(
@@ -1521,7 +1298,6 @@ def generar_insight_quirurgico(pc_data):
             
             resultado_json = json.loads(response_final.text.strip())
             
-            # 🟢 OBSERVABILIDAD AGÉNTICA (ISMS FORUM COMPLIANT): Volcado de traza en Cloud Logging
             print(f"[AIOps OBSERVABILITY] [CHAIN OF THOUGHT] Sentinel AI ha procesado un diagnóstico para el host {usuario_target}. "
                   f"Rendimiento analizado lógicamente. Herramienta determinada: {resultado_json.get('mini_herramienta_sugerida')}. "
                   f"Razonamiento emitido: '{resultado_json.get('diagnostico_texto')}'")
@@ -1550,30 +1326,48 @@ def generar_insight_quirurgico(pc_data):
             else:
                 return {"diagnostico_texto": "Sentinel AI recalculando matrices.", "mini_herramienta_sugerida": "ok", "_tracking_tokens": {"costo_usd": 0}}
 
-#
+
+# =========================================================================
 # ENDPOINT DE CONFIGURACIÓN SEGURA HARDENING (OWASP COMPLIANT ADAPTATIVO)
-#
+# =========================================================================
 @app.route('/api/config', methods=['GET'])
 def obtener_configuracion_segura():
+    import hmac
     try:
         auth_header = request.headers.get("Authorization")
         master_token = os.environ.get("MASTER_BEARER_TOKEN")
         
-        if master_token:
-            if not auth_header or auth_header != master_token:
-                return jsonify({"status": "error", "message": "Acceso Denegado: Credenciales lógicas de origen inválidas."}), 401
+        if not master_token:
+            print("[SECURITY ALERT] Intento de acceso a /api/config denegado: 'MASTER_BEARER_TOKEN' no configurado en el entorno.")
+            return jsonify({"status": "error", "message": "Subsistema de autenticación perimetral no inicializado."}), 500
+
+        if not auth_header or not hmac.compare_digest(str(auth_header), str(master_token)):
+            print("[SECURITY ALERT] Intento de acceso fallido a /api/config: Firma de origen inválida.")
+            return jsonify({"status": "error", "message": "Acceso Denegado: Credenciales lógicas de origen inválidas."}), 401
             
+        firebase_key = os.environ.get("FIREBASE_API_KEY")
+        firebase_domain = os.environ.get("FIREBASE_AUTH_DOMAIN")
+        firebase_project = os.environ.get("FIREBASE_PROJECT_ID")
+        firebase_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET")
+        firebase_sender = os.environ.get("FIREBASE_MESSAGING_SENDER_ID")
+        firebase_app_id = os.environ.get("FIREBASE_APP_ID")
+
+        if not all([firebase_key, firebase_domain, firebase_project, firebase_bucket, firebase_sender, firebase_app_id]):
+            return jsonify({"status": "error", "message": "Configuración de entorno incompleta en el servidor."}), 500
+
         return jsonify({
-            "apiKey": os.environ.get("FIREBASE_API_KEY", "AIzaSyBAG5zqgvdVzzGTVQdkkQmdn6V9yNm_BLA"),
-            "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN", "global365-35e00.firebaseapp.com"),
-            "projectId": os.environ.get("FIREBASE_PROJECT_ID", "global365-35e00"),
-            "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "global365-35e00.firebasestorage.app"),
-            "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "369266483091"),
-            "appId": os.environ.get("FIREBASE_APP_ID", "1:369266483091:web:177f5253cd61649e3f5266")
+            "apiKey": firebase_key,
+            "authDomain": firebase_domain,
+            "projectId": firebase_project,
+            "storageBucket": firebase_bucket,
+            "messagingSenderId": firebase_sender,
+            "appId": firebase_app_id
         }), 200
+        
     except Exception as e:
         print(f"X Error al despachar configuración perimetral: {str(e)}")
         return jsonify({"status": "error", "message": "No se pudo recuperar el entorno de inicialización."}), 500
+
 
 # =========================================================================
 # ENDPOINT HITL CENTRALIZADO (VERIFICACIÓN REAL DE FIRMA CRIPTOGRÁFICA)
@@ -1584,9 +1378,7 @@ def api_remediar_dispositivo():
         if not db: 
             return jsonify({"status": "error", "message": "Base de datos desconectada."}), 503
             
-        # 🔒 VALIDACIÓN CRIPTOGRÁFICA REAL APPSEC (ANTI-BYPASS ZERO-TRUST)
         try:
-            # 🟢 CORRECCIÓN: Se elimina cualquier bypass cosmético de longitud o strings harcodeados ("123456")
             informacion_supervisor = validar_session_firebase(request)
             print(f" Sentinel SOC: Identity confirmada criptográficamente para el supervisor {informacion_supervisor['email']}")
         except Exception as auth_err:
@@ -1603,12 +1395,11 @@ def api_remediar_dispositivo():
         
         if not id_equipo or not comando_key:
             return jsonify({"status": "error", "message": "Parámetros insuficientes para el despacho."}), 400
-        if comando_key not in LISTA_BLANCA_HERRAMIENTAS:
+        if comando_key not in LISTA_BLANCA_HERMINATAS:
             return jsonify({"status": "error", "message": f"Comando '{comando_key}' denegado por políticas de hardening."}), 403
             
         print(f" Sentinel SOC: Encolando comando perimetral 00B '{comando_key}' para el computador '{id_equipo}'...")
         
-        # --- BLOQUE: INTERCEPCIÓN PARA AUDITORÍA 360 ---
         if comando_key == "generar_auditoria_360":
             print(f" Sentinel SOC: Executing Auditoría 360 On-Demand para '{id_equipo}'...")
             doc_equipo = db.collection(coleccion_origen).document(id_equipo).get()
@@ -1625,7 +1416,6 @@ def api_remediar_dispositivo():
                 "status": "success", 
                 "reporte": reporte_json
             }), 200
-        # ------------------------------------------------------
         
         doc_ref = db.collection(coleccion_origen).document(id_equipo)
         doc_ref.update({
@@ -1641,9 +1431,10 @@ def api_remediar_dispositivo():
         print(f"X Fallo en despacho centralizado HITL: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo interno en el servidor perimetral: {str(e)}"}), 500
 
-#
-# RUTA API FRONTEND (CON GOVERNANCE & DECISION TRACING EXTENDIDO - Req 1)
-#
+
+# =========================================================================
+# RUTA API FRONTEND (CON GOVERNANCE & DECISION TRACING EXTENDIDO)
+# =========================================================================
 @app.route('/api/diagnostico', methods=['POST'])
 @limiter.limit("10 per minute")
 def api_diagnostico_pc():
@@ -1661,7 +1452,6 @@ def api_diagnostico_pc():
         herramienta_final = objeto_ai.get("mini_herramienta_sugerida", "ok")
         tracking_tokens = objeto_ai.get("_tracking_tokens", {"costo_usd": 0})
         
-        # 🟢 REQUERIMIENTO 1: Resguardo silencioso de los metadatos forenses MITRE y Chain of Thought
         razonamiento_ocsf = objeto_ai.get("razonamiento_interno", "Procesamiento agéntico estándar ejecutado.")
         mitre_mapeo = objeto_ai.get("tecnica_mitre", "ASI01 - Agentic Standard Monitoring")
         
@@ -1670,14 +1460,12 @@ def api_diagnostico_pc():
                 uid_equipo = pc_telemetria.get('id') or pc_telemetria.get('uid') or pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')
                 empresa_id = pc_telemetria.get('cliente', {}).get('empresa', 'DESCONOCIDA').upper()
                 
-                # Ingesta extendida inmutable en Firestore (Oculta para WhatsApp)
                 db.collection(COLECCION_DECISIONES).add({
                     "uid": str(uid_equipo).upper(),
                     "empresa_id": empresa_id,
                     "timestamp": firestore.SERVER_TIMESTAMP,
                     "diagnostico_texto": diagnostico_final,
                     "mini_herramienta_sugerida": herramienta_final,
-                    # Persistencia de campos ocultos del backend auditables:
                     "razonamiento_interno_cot": razonamiento_ocsf,
                     "mitre_attack_technique": mitre_mapeo,
                     "metadata_origen": {
@@ -1693,7 +1481,6 @@ def api_diagnostico_pc():
             except Exception as err_trace:
                 print(f"! Fallo no bloqueante en Decision Tracing o Finops IA: {str(err_trace)}")
             
-        # El canal HTTP/Frontend sigue devolviendo la estructura minimalista limpia
         return jsonify({
             "status": "success",
             "diagnostico": diagnostico_final,
@@ -1707,9 +1494,10 @@ def api_diagnostico_pc():
             "mini_herramienta": "ok"
         }), 200
 
-#
+
+# =========================================================================
 # ENDPOINT DE AUDITORÍA SÍNCRONA 360 (VINCULADO AL PORTAL ADMIN)
-#
+# =========================================================================
 @app.route('/api/auditoria360', methods=['POST'])
 @limiter.limit("5 per minute")
 def api_auditoria_360_sincrona():
@@ -1764,16 +1552,20 @@ def api_auditoria_360_sincrona():
         print(f"X Falla crítica en canalización /api/auditoria360: {str(e)}")
         return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
 
-#
-# ENDPOINT DE RECEPCIÓN DFIR /api/forense/ingesta (OWASP ASVS / AIOps LOGGING COMPLIANT)
-#
+
+# =========================================================================
+# ENDPOINT DE RECEPCIÓN DFIR /api/forense/ingesta (MITIGACIÓN PUNTOS 1 Y 2)
+# =========================================================================
 @app.route('/api/forense/ingesta', methods=['POST'])
 @limiter.limit("30 per minute")
 def api_forense_ingesta():
     try:
         auth_token = request.headers.get("X-Sentinel-Agent-Token")
-        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN", "global365_dfir_agent_secret_key_2026")
+        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN")
         
+        if not token_esperado:
+            return jsonify({"status": "error", "message": "Servicio de validación forense perimetral no inicializado."}), 500
+            
         if not auth_token or auth_token != token_esperado:
             return jsonify({"status": "error", "message": "Acceso Denegado: Firma o Token de Agente local inválida."}), 401
             
@@ -1790,27 +1582,26 @@ def api_forense_ingesta():
             
         resultado_resguardo = registrar_evidencia_forense(id_equipo, empresa_id, artefactos)
         
-        if resultado_resguardo["status"] == "success":
+        if resultado_resguardo.get("status") == "success":
             hash_digital = resultado_resguardo["hash_verificacion"]
             print(f"[AIOps INCIDENT LOG] [DFIR INDUCTION] Host Target: {id_equipo} | Master Tenant: {empresa_id} | Signature SHA-256: {hash_digital} | Custody Matrix: SECURED_ISO_27037")
             
-            # Este es el bloque exitoso (líneas 1782-1786). Lo mantenemos limpio:
-        return jsonify({
-            "status": "success",
-            "message": "Artefactos forenses capturados, encapsulados y firmados criptográficamente con éxito.",
-            "hash_cadena_custodia": hash_digital
-        }), 201
-    else:
-        # Aquí corregimos la vulnerabilidad (línea 1788) cambiando el mensaje dinámico por uno genérico y seguro
+            return jsonify({
+                "status": "success",
+                "message": "Artefactos forenses capturados, encapsulados y firmados criptográficamente con éxito.",
+                "hash_cadena_custodia": hash_digital
+            }), 201
+            
         return jsonify({"status": "error", "message": "Ocurrió un error interno al procesar el resguardo"}), 500
             
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/forense/ingesta: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo crítico en el túnel DFIR central: {str(e)}"}), 500
 
-#
+
+# =========================================================================
 # ENDPOINT DE ANÁLISIS SÍNCRONO FORENSE DE MEMORIA RAM (/api/forense/analisis_ram)
-#
+# =========================================================================
 @app.route('/api/forense/analisis_ram', methods=['POST'])
 @limiter.limit("5 per minute")
 def api_forense_analisis_ram():
@@ -1854,7 +1645,6 @@ def api_forense_analisis_ram():
                 "message": "Ocurrió un error al procesar el tracing forense"
             }), 500
             
-        # === RETORNO DE ÉXITO INTEGRADO ===
         return jsonify({
             "status": "success",
             "reporte": reporte_forense_ram
@@ -1864,14 +1654,13 @@ def api_forense_analisis_ram():
         print(f"X Caída catastrófica controlada en endpoint /api/forense/analisis_ram: {str(e)}")
         return jsonify({"status": "error", "message": "Ocurrió un error interno en el clúster perimetral forense"}), 500
 
+
+# =========================================================================
 # ENDPOINT SÍNCRONO DE RECONSTRUCCIÓN DE ATAQUES (/api/forense/timeline)
+# =========================================================================
 @app.route('/api/forense/timeline', methods=['POST'])
 @limiter.limit("5 per minute")
 def api_forense_timeline():
-    """
-    Endpoint síncrono del Portal Admin. Recibe artefactos web y líneas de tiempo del host,
-    valida los privilegios del operador de Global365 e invoca la skill de análisis pericial cognitivo.
-    """
     try:
         if not db: return jsonify({"status": "error", "message": "Base de datos fuera de línea."}), 503
         datos_solicitud = request.get_json()
@@ -1880,13 +1669,12 @@ def api_forense_timeline():
             
         token_validacion = datos_solicitud.get("token_validacion")
         id_equipo = datos_solicitud.get("idEquipo")
-        artefactos_raw = datos_solicitud.get("artefactosWeb") # Contiene historiales, cookies, descargas y marcas MACE
+        artefactos_raw = datos_solicitud.get("artefactosWeb")
         empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
         
         if not token_validacion or not id_equipo or not artefactos_raw:
             return jsonify({"status": "error", "message": "Parámetros insuficientes (ID Equipo, Token o Artefactos ausentes)."}), 400
             
-        #  Validación criptográfica de identidad del supervisor (Zero-Trust)
         try:
             informacion_supervisor = firebase_auth.verify_id_token(token_validacion)
             print(f" Sentinel SOC: Reconstrucción de Timeline autorizada por operador: {informacion_supervisor['email']}")
@@ -1897,7 +1685,6 @@ def api_forense_timeline():
         print(f" Sentinel AI: Analizando artefactos web y manipulación MACE para host '{id_equipo}'...")
         reporte_timeline = analizar_artefactos_timeline(artefactos_raw)
         
-        # Trazabilidad Cognitiva Forense e Ingesta de Alertas Estructuradas (AIOps Ready)
         try:
             db.collection(COLECCION_DECISIONES).add({
                 "tipo": "ANALISIS_TIMELINE_ANTIFORENSE",
@@ -1914,7 +1701,6 @@ def api_forense_timeline():
                 "message": "Ocurrió un error al procesar la trazabilidad del timeline"
             }), 500
             
-        # === RETORNO DE ÉXITO INTEGRADO ===
         return jsonify({
             "status": "success",
             "reporte": reporte_timeline
@@ -1924,12 +1710,11 @@ def api_forense_timeline():
         print(f"X Caída catastrófica controlada en endpoint /api/forense/timeline: {str(e)}")
         return jsonify({"status": "error", "message": "Ocurrió un error interno en el subsistema forense"}), 500
 
-# 🟢 PASO 2: ACTUALIZACIÓN DE LA FUNCIÓN DE IA CON MEMORIA HISTÓRICA CONVERSACIONAL (5 MENSAJES)
+
+# =========================================================================
+# GESTIÓN CONVERSACIONAL DE IA Y PROCESAMIENTO GENERAL DE RESPUESTAS
+# =========================================================================
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
-    """
-    Genera el diagnóstico adaptativo inyectando la constante PROMPT_SISTEMA_WHATSAPP
-    y reconstruyendo el hilo conversacional extrayendo los últimos 5 mensajes de Firestore.
-    """
     contexto_telemetria = "DATOS DE TELEMETRÍA EN TIEMPO REAL DE LA EMPRESA:\n"
     if not datos_flota_dict:
         contexto_telemetria += "No hay registros de telemetría recientes vinculados a esta organización corporativa."
@@ -1939,10 +1724,8 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
             contexto_telemetria += f" Métricas Hardware: CPU {datos.get('estado_actual', {}).get('cpu_pct', 0)}%, RAM {datos.get('estado_actual', {}).get('ram_pct', 0)}%\n"
             contexto_telemetria += f" Ciberseguridad: Score Global {datos.get('security_posture', {}).get('score_ponderado', 100)}%\n"
             
-    # Inicialización del buffer contextual con los datos duros perimetrales
     contexto_conversacion = f"{contexto_telemetria}\n\nHISTORIAL CONVERSACIONAL RECIENTE (MEMORIA CORTO PLAZO):\n"
     
-    # Recuperación analítica de los últimos 5 logs de comunicación de este número
     if db and telefono_remitente != "DESCONOCIDO":
         try:
             clean_phone = "".join(re.findall(r"\d+", str(telefono_remitente)))
@@ -1958,7 +1741,6 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
                 origen = "Supervisor" if d.get("remitente") == clean_phone else "Sentinel AI"
                 mensajes_historicos.append(f"[{origen}]: {d.get('mensaje', '')}")
                 
-            # Revertir orden para mantener coherencia cronológica en el prompt
             mensajes_historicos.reverse()
             contexto_conversacion += "\n".join(mensajes_historicos)
         except Exception as err_mem:
@@ -1971,12 +1753,11 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         api_key_studio = os.environ.get("GEMINI_API_KEY")
         client = genai.Client(api_key=api_key_studio)
         
-        # Inyección perimetral de directivas de formato y comportamiento corporativo
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=f"{contexto_conversacion}\n\nMensaje actual entrante del supervisor: {texto_usuario}",
             config=types.GenerateContentConfig(
-                system_instruction=PROMPT_SISTEMA_WHATSAPP, # 🟢 PASO 2: Inyección de directivas UX
+                system_instruction=PROMPT_SISTEMA_WHATSAPP,
                 temperature=0.3
             )
         )
@@ -1984,9 +1765,10 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
     except Exception as e:
         return " *Sentinel:* Estoy experimentando una latencia temporal. Por favor, realiza tu consulta nuevamente en unos instantes."
 
-#
+
+# =========================================================================
 # BARRIDOS AUTOMÁTICOS ASINCÓNICOS
-#
+# =========================================================================
 def generar_reporte_diario():
     print(" Sentinel: Iniciando barrido diario de las 14:00...")
     try:
@@ -2050,6 +1832,7 @@ def generar_reporte_diario():
         print(f"X Error en Reporte Diario: {str(e)}")
         return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
 
+
 @app.route('/ejecutar-prospectiva', methods=['POST'])
 def processar_prospectiva_global():
     print(" Sentinel AI: Analizando degradación de SSDs...")
@@ -2107,9 +1890,10 @@ def processar_prospectiva_global():
         print(f"X Error en Prospectiva: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-#
-# WEBHOOK INTERACTIVO WHATSAPP (HARDENING COMPLIANCE DUAL HITL CHATOPS NUEVO)
-#
+
+# =========================================================================
+# WEBHOOK INTERACTIVO WHATSAPP (VALIDACIÓN ANTI-SPOOFING METAMÁTICA)
+# =========================================================================
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook_whatsapp():
     if request.method == 'GET':
@@ -2117,14 +1901,9 @@ def webhook_whatsapp():
         token = request.args.get('hub.verify_token')
         challenge = request.args.get('hub.challenge')
         if mode == 'subscribe' and token == WHATSAPP_VERIFY_TOKEN:
-            # Aquí aplicamos escape() para sanitizar el parámetro y solucionar la vulnerabilidad XSS
             return escape(challenge), 200
         return 'Token incorrecto', 403
         
-    # =========================================================================
-    # 🔒 VALIDACIÓN MATEMÁTICA INMUTABLE ANTI-SPOOFING (META WEBHOOK COMPLIANCE)
-    # =========================================================================
-    # 🟢 CORRECCIÓN: Se obliga la validación matemática estricta contra el secreto real enlazado
     firma_meta = request.headers.get('X-Hub-Signature-256')
     if not firma_meta:
         print("🚨 ALERTA SOC: Petición entrante al Webhook sin firma criptográfica. Denegado de raíz.")
@@ -2134,17 +1913,14 @@ def webhook_whatsapp():
     
     hash_calculado = hmac.new(
         META_APP_SECRET.encode('utf-8'),
-        request.data,  # Buffer de bytes crudos entrantes indispensables para la validación real
+        request.data,
         hashlib.sha256
     ).hexdigest()
     
-    # Mitigación de Ataques de Temporización (Timing Attacks) usando tiempo constante digest
     if not hmac.compare_digest(hash_recibido, hash_calculado):
         print("🚨 ALERTA CRÍTICA SOC: Firma de Webhook Meta inválida. Intento de suplantación (Spoofing) bloqueado.")
         return jsonify({"status": "error", "message": "Firma criptográfica inválida."}), 403
         
-    # -------------------------------------------------------------------------
-    # Si pasa el control, el payload es legítimo de Meta. Continuamos de forma segura.
     data = request.get_json()
     try:
         entry = data['entry'][0]['changes'][0]['value']
@@ -2267,20 +2043,16 @@ def webhook_whatsapp():
             
         return jsonify({"status": "success"}), 200
     except Exception as e:
-        print(f"X Error crítico en ejecución del Webhook: {str(e)}")
+        print(f"X Error crítico en execution del Webhook: {str(e)}")
         return jsonify({"status": "success"}), 200
-        
+
 def enviar_texto_whatsapp(to, texto):
-    """
-    Envía texto plano y registra la comunicación de salida (Outbound) en Firestore.
-    """
     to_clean = "".join(re.findall(r"\d+", str(to)))
     payload = {"messaging_product": "whatsapp", "to": to_clean, "type": "text", "text": {"body": texto}}
     headers = {"Authorization": f"Bearer {TOKEN_META}", "Content-Type": "application/json"}
     response = requests.post(URL_META, json=payload, headers=headers)
     print(f" Meta API Response Status: {response.status_code}")
     
-    # PASO 3: Trazabilidad Outbound inmutable
     if db:
         try:
             db.collection("registro_comunicaciones_whatsapp").add({
@@ -2294,9 +2066,6 @@ def enviar_texto_whatsapp(to, texto):
             print(f"! Error al escribir trazabilidad de WhatsApp en DB: {str(err_log)}")
 
 def enviar_botones_whatsapp(to, texto, tkt_id):
-    """
-    Estructura y despacha la plantilla interactiva de botones Quick Reply usando el APP_SECRET de Meta.
-    """
     to_clean = "".join(re.findall(r"\d+", str(to)))
     payload = {
         "messaging_product": "whatsapp",
@@ -2342,6 +2111,5 @@ def enviar_botones_whatsapp(to, texto, tkt_id):
         except Exception as e:
             print(f"! Error logging interactive outbound payload: {str(e)}")
 
-# 🚨 ÚNICO ARRANQUE DEL SERVIDOR AL FINAL DEL ARCHIVO
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
