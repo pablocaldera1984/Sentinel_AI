@@ -1333,19 +1333,10 @@ def generar_insight_quirurgico(pc_data):
 # =========================================================================
 @app.route('/api/config', methods=['GET'])
 def obtener_configuracion_segura():
-    import hmac
     try:
-        auth_header = request.headers.get("Authorization")
-        master_token = os.environ.get("MASTER_BEARER_TOKEN")
+        # 🛡️ SEGURIDAD POR ORIGEN (CORS):
+        # Si la petición viene del navegador, Flask-CORS ya valida contra tu 'ORIGEN_PERMITIDO'
         
-        if not master_token:
-            print("[SECURITY ALERT] Intento de acceso a /api/config denegado: 'MASTER_BEARER_TOKEN' no configurado en el entorno.")
-            return jsonify({"status": "error", "message": "Subsistema de autenticación perimetral no inicializado."}), 500
-
-        if not auth_header or not hmac.compare_digest(str(auth_header), str(master_token)):
-            print("[SECURITY ALERT] Intento de acceso fallido a /api/config: Firma de origen inválida.")
-            return jsonify({"status": "error", "message": "Acceso Denegado: Credenciales lógicas de origen inválidas."}), 401
-            
         firebase_key = os.environ.get("FIREBASE_API_KEY")
         firebase_domain = os.environ.get("FIREBASE_AUTH_DOMAIN")
         firebase_project = os.environ.get("FIREBASE_PROJECT_ID")
@@ -1356,6 +1347,7 @@ def obtener_configuracion_segura():
         if not all([firebase_key, firebase_domain, firebase_project, firebase_bucket, firebase_sender, firebase_app_id]):
             return jsonify({"status": "error", "message": "Configuración de entorno incompleta en el servidor."}), 500
 
+        # Retornamos las credenciales públicas de Firebase al portal
         return jsonify({
             "apiKey": firebase_key,
             "authDomain": firebase_domain,
@@ -1366,9 +1358,8 @@ def obtener_configuracion_segura():
         }), 200
         
     except Exception as e:
-        print(f"X Error al despachar configuración perimetral: {str(e)}")
+        print(f"❌ Error al despachar configuración perimetral: {str(e)}")
         return jsonify({"status": "error", "message": "No se pudo recuperar el entorno de inicialización."}), 500
-
 
 # =========================================================================
 # ENDPOINT HITL CENTRALIZADO (VERIFICACIÓN REAL DE FIRMA CRIPTOGRÁFICA)
