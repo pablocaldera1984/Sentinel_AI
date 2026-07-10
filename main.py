@@ -6,7 +6,8 @@ import time
 import hmac
 import hashlib
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, escape
+from flask import Flask, request, jsonify
+from markupsafe import escape
 import firebase_admin
 from firebase_admin import credentials, firestore, auth as firebase_auth
 from google.cloud.firestore_v1.base_query import FieldFilter
