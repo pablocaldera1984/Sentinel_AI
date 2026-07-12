@@ -2018,54 +2018,54 @@ def webhook_whatsapp():
                     forzar_aprobacion = True
 
             if tkt_id and db:
-                tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
-                if tkt_ref.exists:
-                    tkt_data = tkt_ref.to_dict()
-                    clean_remitente = "".join(re.findall(r"\d+", telefono_remitente))
-                    clean_sup = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_supervisor", ""))))
-                    clean_adm = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_admin", ""))))
-                    
-                    if (clean_remitente == clean_sup or clean_remitente == clean_adm):
-                        if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
-                            if forzar_aprobacion:
-                                db.collection("tickets_hitl").document(tkt_id).update({
-                                    "estado": "pendiente", 
-                                    "aprobado_por": clean_remitente, 
-                                    "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
-                                })
-                                # CAMBIA LA LÍNEA DEL UPDATE POR ESTA ESTRUCTURA DE SET:
-                                db.collection(tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)).document(tkt_data.get("id_equipo")).set({
-                                    "comandos_pendientes": {
-                                        "accion": tkt_data.get("comando_sugerido"), 
-                                        "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
-                                        "estado_ejecucion": "pendiente", 
-                                        "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
-                                    }
-                                }, merge=True) # <--- Agregamos esto al cerrar la llave del diccionario
-                                print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} authorized vía botón por {clean_remitente}")
-                                enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
-                            elif forzar_rechazo:
-                                db.collection("tickets_hitl").document(tkt_id).update({
-                                    "estado": "rechazado", 
-                                    "rechazado_por": clean_remitente, 
-                                    "timestamp_cancelacion": firestore.SERVER_TIMESTAMP
-                                })
-                                print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
-                                enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
-                            return jsonify({"status": "success"}), 200
-                        else:
-                            enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* El Ticket `{tkt_id}` ya fue gestionado previamente por otra línea de administración o por el agente local.")
-                            return jsonify({"status": "error", "message": "Procesado"}), 200
+            tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
+            if tkt_ref.exists:
+                tkt_data = tkt_ref.to_dict()
+                clean_remitente = "".join(re.findall(r"\d+", telefono_remitente))
+                clean_sup = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_supervisor", ""))))
+                clean_adm = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_admin", ""))))
+                
+                if (clean_remitente == clean_sup or clean_remitente == clean_adm):
+                    if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
+                        if forzar_aprobacion:
+                            db.collection("tickets_hitl").document(tkt_id).update({
+                                "estado": "pendiente", 
+                                "aprobado_por": clean_remitente, 
+                                "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
+                            })
+                            
+                            coleccion_destino = tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)
+                            id_equipo_target = tkt_data.get("id_equipo")
+                            
+                            db.collection(coleccion_destino).document(id_equipo_target).set({
+                                "comandos_pendientes": {
+                                    "accion": tkt_data.get("comando_sugerido"), 
+                                    "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
+                                    "estado_ejecucion": "pendiente", 
+                                    "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
+                                }
+                            }, merge=True)
+                            
+                            print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} authorized vía botón por {clean_remitente}")
+                            enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
+                        elif forzar_rechazo:
+                            db.collection("tickets_hitl").document(tkt_id).update({
+                                "estado": "rechazado", 
+                                "rechazado_por": clean_remitente, 
+                                "timestamp_cancelacion": firestore.SERVER_TIMESTAMP
+                            })
+                            print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
+                            enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
+                        return jsonify({"status": "success"}), 200
                     else:
-                        enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
-                        return jsonify({"status": "error", "message": "Denegado"}), 200
+                        enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* El Ticket `{tkt_id}` ya fue gestionado previamente por otra línea de administración o por el agente local.")
+                        return jsonify({"status": "error", "message": "Procesado"}), 200
+                else:
+                    enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
+                    return jsonify({"status": "error", "message": "Denegado"}), 200
 
             ahora = datetime.now()
-            # Se deshabilita la restricción de fin de semana y feriados para que opera 24/7
-            # if ahora.weekday() >= 5 or ahora.date() in feriados_cl:
-            #     enviar_texto_whatsapp(telefono_remitente, " *Sentinel:* Nuestro Monitoreo bajo demanda opera en días hábiles. Procesaremos esto el próximo día laboral.")
-            #     return jsonify({"status": "success"}), 200
-                
+            
             if not db: return jsonify({"status": "error", "message": "Db offline"}), 200
             usuarios_ref = db.collection("usuarios").where(filter=FieldFilter("telefono_whatsapp", "in", [telefono_remitente, f"+{telefono_remitente}"])).limit(1).stream()
             usuario_sis = None
