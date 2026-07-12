@@ -1195,17 +1195,25 @@ const desplegarInferenciaAI = async () => {
     const diagnosticoTexto = objetoAI.diagnostico || objetoAI.diagnostico_texto || "";
     const comandoSugerido = objetoAI.mini_herramienta || objetoAI.mini_herramienta_sugerida || "ok";
     let bloqueAccionHTML = "";
+    
     if (comandoSugerido !== "ok" && MAPEO_VISUAL_HERRAMIENTAS[comandoSugerido]) {
       const configVisual = MAPEO_VISUAL_HERRAMIENTAS[comandoSugerido];
       if(pulseAI) pulseAI.className = `w-2 h-2 rounded-full bg-${configVisual.color}/60 shadow-[0_0_8px_rgba(255,255,255,0.4)]`;
+      
+      // 🟢 SANITIZACIÓN ESTRICTA EN LITERALES DE PLANTILLA ANTES DE INYECTAR AL DOM
+      const colorLimpio = escapeHTML(configVisual.color);
+      const iconLimpio = escapeHTML(configVisual.icon);
+      const preguntaLimpia = escapeHTML(configVisual.pregunta);
+      const btnTextLimpio = escapeHTML(configVisual.btnText);
+
       bloqueAccionHTML = `
         <div class="mt-4 pt-3.5 border-t border-white/5 w-full flex flex-col gap-2.5">
           <p class="text-[11px] text-slate-200 font-medium flex items-start gap-1.5 leading-relaxed">
-            <span class="material-symbols-outlined text-${configVisual.color} text-[15px] shrink-0 mt-0.5">${configVisual.icon}</span>
-            ${configVisual.pregunta}
+            <span class="material-symbols-outlined text-${colorLimpio} text-[15px] shrink-0 mt-0.5">${iconLimpio}</span>
+            ${preguntaLimpia}
           </p>
-          <button id="btn-exec-${escapeHTML(comandoSugerido)}" data-comando="${escapeHTML(comandoSugerido)}" data-uid="${escapeHTML(equipoSeleccionado._dispositivoUID)}" class="boton_remediar_hitl w-full py-2 rounded bg-${configVisual.color}/10 text-${configVisual.color} border border-${configVisual.color}/30 hover:bg-${configVisual.color} hover:text-surface font-black text-[10px] uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 transition-all duration-300 shadow-md">
-            <span class="material-symbols-outlined text-[14px]">bolt</span> ${configVisual.btnText}
+          <button id="btn-exec-${escapeHTML(comandoSugerido)}" data-comando="${escapeHTML(comandoSugerido)}" data-uid="${escapeHTML(equipoSeleccionado._dispositivoUID)}" class="boton_remediar_hitl w-full py-2 rounded bg-${colorLimpio}/10 text-${colorLimpio} border border-${colorLimpio}/30 hover:bg-${colorLimpio} hover:text-surface font-black text-[10px] uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 transition-all duration-300 shadow-md">
+            <span class="material-symbols-outlined text-[14px]">bolt</span> ${btnTextLimpio}
           </button>
         </div>`;
     } else {
@@ -1263,8 +1271,8 @@ const ejecutarMiniHerramientaIndividual = async (idEquipo, comandoKey, btnElemen
     }
     modalOOB.classList.remove("hidden");
     
-    // OBTENCIÓN CRIPTOGRÁFICA DEL TOKEN EN RUNTIME
-    const tokenDinamicoMFA = await auth.currentUser.getIdToken(true);
+    // 🟢 OPTIMIZADO: Eliminado 'true' para usar caché inteligente y evitar Rate Limiting
+    const tokenDinamicoMFA = await auth.currentUser.getIdToken();
     
     textOOB.innerText = "Token verificado con éxito. Despachando comando...";
     const REMEDIAR_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/remediar";
@@ -1311,8 +1319,8 @@ const inyectarComandoGrupo = async (lista, comandoKey) => {
     loaderOOB.style.display = "flex";
     modalOOB.classList.remove("hidden");
     
-    // CONFIGURACIÓN DE SEGURIDAD EN PROCESO POR LOTES
-    const tokenDinamicoMFA = await auth.currentUser.getIdToken(true);
+    // 🟢 OPTIMIZADO: Reutiliza el mismo token válido para toda la ráfaga de peticiones del bucle
+    const tokenDinamicoMFA = await auth.currentUser.getIdToken();
     
     const REMEDIAR_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/remediar";
     for (const pc of lista) {
@@ -1634,7 +1642,7 @@ function setupListenersEstaticos() {
   document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => { window.location.href = 'login.html'; }).catch(console.error);
 }
 
-// ARRANQUE COMPLIANCE SEGÚN OWASP (Removido token en texto claro de cabeceras)
+// ARRANQUE COMPLIANCE SEGÚN OWASP (Optimización UI/UX en Fallos)
 (async function inicializarEntornoSeguro() {
   try {
     const CONFIG_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/config";
@@ -1655,7 +1663,20 @@ function setupListenersEstaticos() {
     arrancarCicloDeAutenticacion();
   } catch (error) {
     console.error("Error Crítico Perimetral:", error);
-    document.getElementById('company-name').innerText = "FALLO DE ENLACE SOC";
+    
+    // 🟢 Unificación visual de errores Global365
+    const companyNameEl = document.getElementById('company-name');
+    if (companyNameEl) {
+      companyNameEl.innerText = "FALLO DE VAULT";
+      companyNameEl.classList.remove('text-primary');
+      companyNameEl.classList.add('text-error', 'animate-pulse');
+    }
+    
+    const userFullNameEl = document.getElementById('user-full-name');
+    if (userFullNameEl) {
+      userFullNameEl.innerText = "ERROR DE ENLACE SOC";
+      userFullNameEl.classList.add('text-error');
+    }
   }
 })();
 </script>

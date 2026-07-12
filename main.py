@@ -288,7 +288,12 @@ DICCIONARIO_AMENAZAS_AMIGABLES = {
     "ITDR": "Un intento de acceso sospechoso o posible robo de credenciales corporativas en las cuentas cloud,",
     "EASM": "Una vulnerabilidad o brecha de seguridad detectada en el escudo perimetral de internet de la empresa,",
     "FINOPS_ANOMALY": "Un comportamiento ineficiente en el uso de recursos lógicos o licencias ociosas,",
-    "HELPDESK_COMPROMISE": "Un reseteo sospechoso de accesos en el soporte técnico seguido de inicios de sesión simultáneos vía Single Sign-On (SSO),"
+    "HELPDESK_COMPROMISE": "Un reseteo sospechoso de accesos en el soporte técnico seguido de inicios de sesión simultáneos vía Single Sign-On (SSO),",
+    "HIGH_TEMPERATURE": "Un sobrecalentamiento crítico por estrés térmico en el procesador principal que pone en riesgo el silicio,",
+    "RAM_SATURATION": "Una saturación extrema de memoria RAM que amenaza con congelar por completo el sistema,",
+    "SSD_DEGRADATION": "Una degradación avanzada de bloques defectuosos y salud crítica en la unidad de almacenamiento,",
+    "BATTERY_WEAR": "Un desgaste químico acelerado en la batería local que compromete la autonomía física,",
+    "COMPLIANCE_BREACH": "Una caída en el bastionado lógico por desactivación de las directivas de seguridad corporativas (Firewall/UAC),"
 }
 
 # 🟢 TRADUCCIÓN DE SOLUCIONES A LENGUAJE DE NEGOCIO (WHATSAPP UX)
@@ -303,7 +308,11 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
     "ITDR": "Las sesiones comprometidas fueron revocadas de inmediato y se aplicó un bloqueo preventivo en la cuenta cloud,",
     "EASM": "Se bloquearon las IPs atacantes y se reforzó el escudo del firewall perimetral de la empresa,",
     "FINOPS_ANOMALY": "Se optimizaron los perfiles de energía y se liberaron las suscripciones ociosas recuperando la eficiencia presupuestaria,",
-    "HELPDESK_COMPROMISE": "Las credenciales afectadas fueron revocadas de inmediato, cerrando las sesiones activas en la nube y bloqueando el abuso de identidad digital,"
+    "HIGH_TEMPERATURE": "Se purgaron con éxito los subprocesos de alta carga desestabilizantes, reduciendo la curva de estrés en el silicio,",
+    "RAM_SATURATION": "Se forzó la limpieza de buffers huérfanos de memoria RAM de forma remota, recuperando la fluidez operativa,",
+    "SSD_DEGRADATION": "Se ejecutó una optimización electrónica TRIM en la unidad sólida y se encoló un reemplazo de hardware preventivo,",
+    "BATTERY_WEAR": "Se reconfiguró el perfil energético a bajo consumo y se agendó un ticket CAPEX para la sustitución física del componente,",
+    "COMPLIANCE_BREACH": "Se re-inyectaron con éxito las directivas rígidas CIS v8 y se reestableció el escudo del cortafuegos local,"
 }
 
 # =========================================================================
@@ -1150,6 +1159,59 @@ CONFIGURACION_AMENAZAS = [
 for ruta, amenaza, comando in CONFIGURACION_AMENAZAS:
     crear_endpoint_analisis(ruta, amenaza, comando)
 
+# =========================================================================
+# 📍 NUEVO ENDPOINT RECEPTOR DE LA INFRAESTRUCTURA DE SIMULACIÓN AVANZADA
+# =========================================================================
+@app.route('/api/simular-infraestructura', methods=['POST', 'OPTIONS'])
+def api_simular_infraestructura():
+    if request.method == 'OPTIONS': 
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        if not db: 
+            return jsonify({"status": "error", "message": "Firestore desconectado."}), 503
+            
+        payload = request.get_json() or {}
+        tipo_simulacion = payload.get("tipo_simulacion")
+        id_equipo = payload.get("dispositivo", "PC-JUAN-DEMO")
+        empresa_id = "GLOBONA" # Tenant por defecto para maquetas administrativas
+        
+        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
+        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
+        for d in sup_ref: 
+            tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
+        for d in adm_ref: 
+            tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+
+        # 🟢 EVALUACIÓN A: ANOMALÍAS DE TELEMETRÍA FÍSICA (HARDWARE SLIDERS)
+        if tipo_simulacion == "hardware":
+            temp = payload.get("cpu_temperatura_c", 65)
+            ram = payload.get("ram_pct", 45)
+            ssd = payload.get("vida_util_pct", 98)
+            wear = payload.get("battery_wear_level_pct", 12)
+            
+            if temp > 85:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "HIGH_TEMPERATURE", "thermal_throttle_mitigation", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif ram > 80:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "RAM_SATURATION", "ram_flush", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif ssd < 20:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "SSD_DEGRADATION", "defrag_trim_optimizer", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif wear > 60:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "BATTERY_WEAR", "evaluar_roi_y_renovacion_pc", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+
+        # 🟢 EVALUACIÓN B: CAÍDA DE COMPLIANCE CORPORATIVO (TOGGLE SWITCHES)
+        elif tipo_simulacion == "compliance":
+            fw = payload.get("firewall_activo", True)
+            uac = payload.get("uac_activo", True)
+            bit = payload.get("bitlocker_protegido", True)
+            
+            if not fw or not uac or not bit:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "COMPLIANCE_BREACH", "enable_firewall", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # =========================================================================
 # 🟢 ENDPOINT REAL DE PRODUCCIÓN: REPORTE DE REMEDIACIÓN AGENTE SENTINEL
@@ -1387,7 +1449,7 @@ def api_remediar_dispositivo():
         
         if not id_equipo or not comando_key:
             return jsonify({"status": "error", "message": "Parámetros insuficientes para el despacho."}), 400
-        if comando_key not in LISTA_BLANCA_HERMINATAS:
+        if comando_key not in LISTA_BLANCA_HERRAMIENTAS:
             return jsonify({"status": "error", "message": f"Comando '{comando_key}' denegado por políticas de hardening."}), 403
             
         print(f" Sentinel SOC: Encolando comando perimetral 00B '{comando_key}' para el computador '{id_equipo}'...")
@@ -1998,9 +2060,10 @@ def webhook_whatsapp():
                         return jsonify({"status": "error", "message": "Denegado"}), 200
 
             ahora = datetime.now()
-            if ahora.weekday() >= 5 or ahora.date() in feriados_cl:
-                enviar_texto_whatsapp(telefono_remitente, " *Sentinel:* Nuestro Monitoreo bajo demanda opera en días hábiles. Procesaremos esto el próximo día laboral.")
-                return jsonify({"status": "success"}), 200
+# Se deshabilita la restricción de fin de semana y feriados para que opere 24/7
+# if ahora.weekday() >= 5 or ahora.date() in feriados_cl:
+#     enviar_texto_whatsapp(telefono_remitente, " *Sentinel:* Nuestro Monitoreo bajo demanda opera en días hábiles. Procesaremos esto el próximo día laboral.")
+#     return jsonify({"status": "success"}), 200
                 
             if not db: return jsonify({"status": "error", "message": "Db offline"}), 200
             usuarios_ref = db.collection("usuarios").where(filter=FieldFilter("telefono_whatsapp", "in", [telefono_remitente, f"+{telefono_remitente}"])).limit(1).stream()
@@ -2014,7 +2077,7 @@ def webhook_whatsapp():
                 return jsonify({"status": "unauthorized"}), 200
                 
             if usuario_sis.get("role") == "supervisor" or usuario_sis.get("rol") == "supervisor":
-                consultas_actuales = usuario_sis.get("consultas_realizados") if usuario_sis.get("consultas_realizados") is not None else usuario_sis.get("consultas_realizadas", 0)
+                consultas_actuales = usuario_sis.get("consultas_realizadas") if usuario_sis.get("consultas_realizadas") is not None else usuario_sis.get("consultas_realizadas", 0)
                 max_permitidas = usuario_sis.get("max_consultas_mes", 10)
                 if consultas_actuales >= max_permitidas:
                     enviar_texto_whatsapp(telefono_remitente, " *Sentinel:* Límite mensual de consultas excedido.")
