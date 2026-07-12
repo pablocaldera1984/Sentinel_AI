@@ -2033,14 +2033,15 @@ def webhook_whatsapp():
                                     "aprobado_por": clean_remitente, 
                                     "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
                                 })
-                                db.collection(tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)).document(tkt_data.get("id_equipo")).update({
+                                # CAMBIA LA LÍNEA DEL UPDATE POR ESTA ESTRUCTURA DE SET:
+                                db.collection(tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)).document(tkt_data.get("id_equipo")).set({
                                     "comandos_pendientes": {
                                         "accion": tkt_data.get("comando_sugerido"), 
                                         "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
                                         "estado_ejecucion": "pendiente", 
                                         "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
                                     }
-                                })
+                                }, merge=True) # <--- Agregamos esto al cerrar la llave del diccionario
                                 print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} authorized vía botón por {clean_remitente}")
                                 enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
                             elif forzar_rechazo:
@@ -2060,10 +2061,10 @@ def webhook_whatsapp():
                         return jsonify({"status": "error", "message": "Denegado"}), 200
 
             ahora = datetime.now()
-# Se deshabilita la restricción de fin de semana y feriados para que opere 24/7
-# if ahora.weekday() >= 5 or ahora.date() in feriados_cl:
-#     enviar_texto_whatsapp(telefono_remitente, " *Sentinel:* Nuestro Monitoreo bajo demanda opera en días hábiles. Procesaremos esto el próximo día laboral.")
-#     return jsonify({"status": "success"}), 200
+            # Se deshabilita la restricción de fin de semana y feriados para que opera 24/7
+            # if ahora.weekday() >= 5 or ahora.date() in feriados_cl:
+            #     enviar_texto_whatsapp(telefono_remitente, " *Sentinel:* Nuestro Monitoreo bajo demanda opera en días hábiles. Procesaremos esto el próximo día laboral.")
+            #     return jsonify({"status": "success"}), 200
                 
             if not db: return jsonify({"status": "error", "message": "Db offline"}), 200
             usuarios_ref = db.collection("usuarios").where(filter=FieldFilter("telefono_whatsapp", "in", [telefono_remitente, f"+{telefono_remitente}"])).limit(1).stream()
