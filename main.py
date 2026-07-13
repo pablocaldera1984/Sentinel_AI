@@ -866,23 +866,19 @@ def registrar_evidencia_forense(id_equipo: str, empresa_id: str, artefactos: dic
 
 def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
     try:
-        # Cláusula de guarda 1: Si no hay base de datos, abortamos de inmediato
         if not db:
             return
 
         tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
         
-        # Cláusula de guarda 2: Si el ticket no existe, abortamos
         if not tkt_ref.exists:
             return
 
         tkt_data = tkt_ref.to_dict()
         
-        # Cláusula de guarda 3: Si no está en el estado correcto, abortamos
         if tkt_data.get("estado") != "pendiente_aprobacion_hitl":
             return
 
-        # --- A partir de aquí todo corre plano, con una sola sangría estándar ---
         id_equipo = tkt_data.get("id_equipo", "")
         incidente_raw = tkt_data.get("amenaza", "")
         comando_sugerido = tkt_data.get("comando_sugerido", "")
