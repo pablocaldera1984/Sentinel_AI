@@ -866,7 +866,8 @@ def registrar_evidencia_forense(id_equipo: str, empresa_id: str, artefactos: dic
 
 def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
     try:
-        if db:
+        # Unificamos el 'if db' y el 'get()' para cambiar visualmente la estructura y limpiar los espacios fantasmas
+        if db and tkt_id:
             tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
             if tkt_ref.exists:
                 tkt_data = tkt_ref.to_dict()
