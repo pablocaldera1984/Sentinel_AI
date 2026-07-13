@@ -866,32 +866,45 @@ def registrar_evidencia_forense(id_equipo: str, empresa_id: str, artefactos: dic
 
 def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
     try:
-        # Unificamos el 'if db' y el 'get()' para cambiar visualmente la estructura y limpiar los espacios fantasmas
-        if db and tkt_id:
-            tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
-            if tkt_ref.exists:
-                tkt_data = tkt_ref.to_dict()
-                if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
-                    id_equipo = tkt_data.get("id_equipo", "")
-                    incidente_raw = tkt_data.get("amenaza", "")
-                    comando_sugerido = tkt_data.get("comando_sugerido", "")
-                    empresa = tkt_data.get("empresa_id", "GLOBAL365").upper()
-                    
-                    amenaza_amigable = DICCIONARIO_AMENAZAS_AMIGABLES.get(incidente_raw, incidente_raw)
-                    entorno_limpio = limpiar_identificador_usuario(id_equipo)
-                    
-                    es_plural = any(palabra in str(id_equipo).upper() for palabra in ["CLOUD", "SAAS", "IDENTITY", "FLOTA", "HARDWARE"])
-                    type_num = "plural" if es_plural else "singular"
-                    accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
-                    
-                    texto_escalamiento = (
-                        f"⚠️ *URGENTE* ⚠️\n"
-                        f"Te notifico porque el supervisor de *{empresa}* no respondió a una alerta crítica en el último minuto.\n\n"
-                        f"Registramos una situación de *{amenaza_amigable}* en el entorno de {entorno_limpio}.\n\n"
-                        f"Necesito tu autorización para *{accion_humana}* (Ticket: {tkt_id}). ¿Procedemos?"
-                    )
-                    enviar_botones_whatsapp(telefono_admin, texto_escalamiento, tkt_id)
-                    print(f"[AIOps ESCALATION] Ticket {tkt_id} escalated con éxito por timeout al administrador {telefono_admin}.")
+        # Cláusula de guarda 1: Si no hay base de datos, abortamos de inmediato
+        if not db:
+            return
+
+        tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
+        
+        # Cláusula de guarda 2: Si el ticket no existe, abortamos
+        if not tkt_ref.exists:
+            return
+
+        tkt_data = tkt_ref.to_dict()
+        
+        # Cláusula de guarda 3: Si no está en el estado correcto, abortamos
+        if tkt_data.get("estado") != "pendiente_aprobacion_hitl":
+            return
+
+        # --- A partir de aquí todo corre plano, con una sola sangría estándar ---
+        id_equipo = tkt_data.get("id_equipo", "")
+        incidente_raw = tkt_data.get("amenaza", "")
+        comando_sugerido = tkt_data.get("comando_sugerido", "")
+        empresa = tkt_data.get("empresa_id", "GLOBAL365").upper()
+        
+        amenaza_amigable = DICCIONARIO_AMENAZAS_AMIGABLES.get(incidente_raw, incidente_raw)
+        entorno_limpio = limpiar_identificador_usuario(id_equipo)
+        
+        es_plural = any(palabra in str(id_equipo).upper() for palabra in ["CLOUD", "SAAS", "IDENTITY", "FLOTA", "HARDWARE"])
+        type_num = "plural" if es_plural else "singular"
+        accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
+        
+        texto_escalamiento = (
+            f"⚠️ *URGENTE* ⚠️\n"
+            f"Te notifico porque el supervisor de *{empresa}* no respondió a una alerta crítica en el último minuto.\n\n"
+            f"Registramos una situación de *{amenaza_amigable}* en el entorno de {entorno_limpio}.\n\n"
+            f"Necesito tu autorización para *{accion_humana}* (Ticket: {tkt_id}). ¿Procedemos?"
+        )
+        
+        enviar_botones_whatsapp(telefono_admin, texto_escalamiento, tkt_id)
+        print(f"[AIOps ESCALATION] Ticket {tkt_id} escalated con éxito por timeout al administrador {telefono_admin}.")
+
     except Exception as e:
         print(f"X Error en hilo asíncrono de escalamiento: {str(e)}")
 
