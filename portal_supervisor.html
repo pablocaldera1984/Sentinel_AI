@@ -654,6 +654,14 @@ let activosUnsubscribes = [];
 window.equiposData = {};
 let auth = null;
 let db = null;
+
+// =================================================================
+// 🟢 CONFIGURACIÓN CENTRALIZADA DE LA URL DEL BACKEND (CLOUD RUN)
+// =================================================================
+const URL_BACKEND = window.location.hostname === "localhost" 
+  ? "http://localhost:8080" 
+  : "https://enviar-alerta-sentinel-369266483091.us-central1.run.app";
+  
 const FUENTES = ["auditoria_sandbox", "auditoria_global"];
 const MAPEO_VISUAL_HERRAMIENTAS = {
   "ram_flush": { icon: "memory", color: "tertiary", pregunta: "¿Optimizar memoria RAM y mitigar procesos huérfanos?", btnText: "Purgar Silicio" },
@@ -1161,7 +1169,7 @@ const desplegarInferenciaAI = async () => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
   try {
-    const CLOUD_RUN_URL = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/diagnostico";
+    const CLOUD_RUN_URL = `${URL_BACKEND}/api/diagnostico`;
     const activeCPU = (equipoSeleccionado.estado_actual?.cpu_pct !== undefined) ? equipoSeleccionado.estado_actual.cpu_pct : ((equipoSeleccionado.muestras_10_minutos?.uso_cpu?.[equipoSeleccionado.muestras_10_minutos.uso_cpu.length - 1]) || 0);
     const activeRAM = (equipoSeleccionado.estado_actual?.ram_pct !== undefined) ? equipoSeleccionado.estado_actual.ram_pct : ((equipoSeleccionado.muestras_10_minutos?.uso_ram?.[equipoSeleccionado.muestras_10_minutos.uso_ram.length - 1]) || 0);
     const listProcesos = equipoSeleccionado.estado_actual?.top_procesos || [];
@@ -1200,7 +1208,6 @@ const desplegarInferenciaAI = async () => {
       const configVisual = MAPEO_VISUAL_HERRAMIENTAS[comandoSugerido];
       if(pulseAI) pulseAI.className = `w-2 h-2 rounded-full bg-${configVisual.color}/60 shadow-[0_0_8px_rgba(255,255,255,0.4)]`;
       
-      // 🟢 SANITIZACIÓN ESTRICTA EN LITERALES DE PLANTILLA ANTES DE INYECTAR AL DOM
       const colorLimpio = escapeHTML(configVisual.color);
       const iconLimpio = escapeHTML(configVisual.icon);
       const preguntaLimpia = escapeHTML(configVisual.pregunta);
@@ -1271,11 +1278,10 @@ const ejecutarMiniHerramientaIndividual = async (idEquipo, comandoKey, btnElemen
     }
     modalOOB.classList.remove("hidden");
     
-    // 🟢 OPTIMIZADO: Eliminado 'true' para usar caché inteligente y evitar Rate Limiting
     const tokenDinamicoMFA = await auth.currentUser.getIdToken();
     
     textOOB.innerText = "Token verificado con éxito. Despachando comando...";
-    const REMEDIAR_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/remediar";
+    const REMEDIAR_ENDPOINT = `${URL_BACKEND}/api/remediar`;
     const response = await fetch(REMEDIAR_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1313,7 +1319,7 @@ const inyectarComandoGrupo = async (lista, comandoKey) => {
   const textOOB = document.getElementById("oob-auth-text");
   const loaderOOB = document.getElementById("oob-loader");
   try {
-    if(modalOOB) {
+    if (modalOOB) {
       textOOB.innerText = `Iniciando cascada masiva para ${lista.length} equipos...`;
     }
     loaderOOB.style.display = "flex";
@@ -1322,7 +1328,9 @@ const inyectarComandoGrupo = async (lista, comandoKey) => {
     // 🟢 OPTIMIZADO: Reutiliza el mismo token válido para toda la ráfaga de peticiones del bucle
     const tokenDinamicoMFA = await auth.currentUser.getIdToken();
     
-    const REMEDIAR_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/remediar";
+    // 🔄 AHORA: Usa comillas invertidas y la constante global que creamos al inicio
+    const REMEDIAR_ENDPOINT = `${URL_BACKEND}/api/remediar`;
+
     for (const pc of lista) {
       try {
         await fetch(REMEDIAR_ENDPOINT, {
@@ -1339,10 +1347,11 @@ const inyectarComandoGrupo = async (lista, comandoKey) => {
         console.error(`Error de inyección en cascada delegada para ${pc.usuario}:`, e);
       }
     }
-    if(modalOOB) modalOOB.classList.add("hidden");
-  } catch(err) {
+    
+    if (modalOOB) modalOOB.classList.add("hidden");
+  } catch (err) {
     console.error("Error en cascada masiva:", err);
-    if(modalOOB) modalOOB.classList.add("hidden");
+    if (modalOOB) modalOOB.classList.add("hidden");
   }
 };
 
@@ -1645,9 +1654,8 @@ function setupListenersEstaticos() {
 // ARRANQUE COMPLIANCE SEGÚN OWASP (Optimización UI/UX en Fallos)
 (async function inicializarEntornoSeguro() {
   try {
-    const CONFIG_ENDPOINT = "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/config";
+    const CONFIG_ENDPOINT = `${URL_BACKEND}/api/config`;
     
-    // Solicitud limpia confiando en la protección perimetral CORS y Rate Limiting del backend
     const response = await fetch(CONFIG_ENDPOINT, {
       method: "GET",
       headers: {
@@ -1664,7 +1672,6 @@ function setupListenersEstaticos() {
   } catch (error) {
     console.error("Error Crítico Perimetral:", error);
     
-    // 🟢 Unificación visual de errores Global365
     const companyNameEl = document.getElementById('company-name');
     if (companyNameEl) {
       companyNameEl.innerText = "FALLO DE VAULT";

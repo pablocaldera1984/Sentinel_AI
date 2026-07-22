@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. REGLA MAESTRA (Pablo Silva)
+    match /{document=**} {
+      allow read, write: if request.auth != null && 
+        request.auth.token.email == "pablocaldera1984@gmail.com";
+    }
+
+    // 2. IDENTIDAD Y PERFIL (Vital para el inicio de sesión)
+    match /usuarios/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
+    match /contactos/{docId} {
+      // Permite que el supervisor lea sus propios datos de contacto
+      allow read: if request.auth != null;
+    }
+
+    // 3. REGLAS DE NEGOCIO (Filtrado por empresa para el cliente)
+    match /inventario_global/{document} {
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.empresa_id == resource.data.id_empresa;
+    }
+
+    match /auditoria_sandbox/{document} {
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.empresa_id == resource.data.cliente.empresa;
+      allow write: if true; 
+    }
+    
+    match /auditoria_global/{document} {
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.empresa_id == resource.data.cliente.empresa;
+      allow write: if true; 
+    }
+
+    // 4. SISTEMA DE SOPORTE Y MENSAJERÍA
+    match /tickets_soporte/{document} {
+      allow read, write: if request.auth != null;
+    }
+    match /mensajes_admin/{document} {
+      allow read: if request.auth != null;
+    }
+
+    // 5. VOUCHERS
+    match /vouchers/{voucherId} {
+      allow get, update: if true;
+    }
+  }
+}

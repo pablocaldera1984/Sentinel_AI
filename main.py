@@ -1110,7 +1110,7 @@ def api_easm_analisis():
 def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
     """
     Genera y registra dinámicamente endpoints de análisis de amenazas en Flask.
-    Reduce la redundancia del código y unifica la lógica de auditoría perimetral.
+    Captura payloads de simulación y sincroniza la trazabilidad con Firestore.
     """
     @app.route(f'/api/{endpoint_name}/analisis', methods=['POST', 'OPTIONS'], endpoint=f'api_{endpoint_name}_analisis')
     @limiter.limit("5 per minute")
@@ -1123,12 +1123,38 @@ def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
             datos_solicitud = request.get_json() or {}
             token_val = datos_solicitud.get("token_validacion")
             empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
-            id_equipo = datos_solicitud.get("idEquipo")
+            id_equipo = datos_solicitud.get("idEquipo", "EQUIPO_DESCONOCIDO")
+
+            # Extraer cualquier payload de logs contextuales enviado desde el frontend
+            logs_contextuales = (
+                datos_solicitud.get("logsSecops") or 
+                datos_solicitud.get("logsShadow") or 
+                datos_solicitud.get("logsDns") or 
+                datos_solicitud.get("logsFinops") or 
+                datos_solicitud.get("logsIa") or 
+                datos_solicitud.get("logsIdentidad") or 
+                datos_solicitud.get("logsFisicos") or {}
+            )
 
             try: 
-                firebase_auth.verify_id_token(token_val)
+                informacion_operador = firebase_auth.verify_id_token(token_val)
+                operador_email = informacion_operador.get("email", "SISTEMA")
             except: 
                 return jsonify({"status": "error", "message": "Firma criptográfica inválida."}), 403
+
+            # Registrar la trazabilidad del incidente en auditoria_decisiones_ia
+            try:
+                db.collection(COLECCION_DECISIONES).add({
+                    "tipo": f"ANALISIS_{amenaza_key}",
+                    "uid": str(id_equipo).upper(),
+                    "empresa_id": empresa_id,
+                    "timestamp": firestore.SERVER_TIMESTAMP,
+                    "operador_autorizador": operador_email,
+                    "mini_herramienta_sugerida": comando_key,
+                    "logs_analizados": logs_contextuales
+                })
+            except Exception as err_log:
+                print(f"! Error no bloqueante al registrar decisión de simulación: {str(err_log)}")
 
             tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
             
@@ -1149,7 +1175,7 @@ def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
                 coleccion_origen=COLECCION_TELEMETRIA, 
                 empresa_id=empresa_id
             )
-            return jsonify({"status": "success"}), 200
+            return jsonify({"status": "success", "message": f"Análisis y simulación {amenaza_key} procesados correctamente."}), 200
             
         except Exception as e: 
             return jsonify({"status": "error", "message": str(e)}), 500
@@ -1442,12 +1468,15 @@ def api_remediar_dispositivo():
         if not db: 
             return jsonify({"status": "error", "message": "Base de datos desconectada."}), 503
             
+        # 1. Validar Token de Firebase
         try:
-            informacion_supervisor = validar_session_firebase(request)
-            print(f" Sentinel SOC: Identity confirmada criptográficamente para el supervisor {informacion_supervisor['email']}")
+            informacion_usuario = validar_session_firebase(request)
+            uid_usuario = informacion_usuario.get("uid")
+            email_usuario = informacion_usuario.get("email", "")
+            print(f" Sentinel SOC: Identidad confirmada para {email_usuario}")
         except Exception as auth_err:
-            print(f"🚨 ALERTA SOC: Intento de bypass de autenticación interceptado en /api/remediar: {str(auth_err)}")
-            return jsonify({"status": "error", "message": "Acceso Denegado: Firma criptográfica o Token inválido/expirado."}), 401
+            print(f"🚨 ALERTA SOC: Intento de bypass de autenticación interceptado: {str(auth_err)}")
+            return jsonify({"status": "error", "message": "Acceso Denegado: Token inválido o expirado."}), 401
             
         datos_hitl = request.get_json()
         if not datos_hitl:
@@ -1456,16 +1485,54 @@ def api_remediar_dispositivo():
         id_equipo = datos_hitl.get("idEquipo")
         comando_key = datos_hitl.get("comandoKey")
         coleccion_origen = datos_hitl.get("coleccionOrigen", COLECCION_TELEMETRIA)
+        clave_master_ingresada = datos_hitl.get("clave_validacion_master")
         
         if not id_equipo or not comando_key:
             return jsonify({"status": "error", "message": "Parámetros insuficientes para el despacho."}), 400
+            
         if comando_key not in LISTA_BLANCA_HERRAMIENTAS:
             return jsonify({"status": "error", "message": f"Comando '{comando_key}' denegado por políticas de hardening."}), 403
+
+        # 2. Extracción de Rol y Empresa desde Custom Claims o Firestore
+        rol_usuario = informacion_usuario.get("rol") or informacion_usuario.get("role")
+        empresa_usuario = informacion_usuario.get("empresa_id") or informacion_usuario.get("empresa")
+        
+        if not rol_usuario or not empresa_usuario:
+            doc_user = db.collection("usuarios").document(uid_usuario).get()
+            if doc_user.exists:
+                data_u = doc_user.to_dict()
+                rol_usuario = rol_usuario or data_u.get("rol") or data_u.get("role")
+                empresa_usuario = empresa_usuario or data_u.get("empresa_id") or data_u.get("empresa")
+
+        rol_usuario = str(rol_usuario).lower() if rol_usuario else "supervisor"
+        empresa_usuario = str(empresa_usuario).upper() if empresa_usuario else ""
+
+        # 3. Validación de Clave Maestra en Aislamientos Globales / Kill-Switch
+        if comando_key == "aislar_equipo" and coleccion_origen == "config_empresas":
+            master_secret = os.environ.get("MASTER_KILL_SWITCH_PASS", "SentinelSOC2026Master!")
+            if not clave_master_ingresada or clave_master_ingresada != master_secret:
+                print(f"🚨 ALERTA CRÍTICA: Intento de Kill-Switch con clave maestra inválida por {email_usuario}")
+                return jsonify({"status": "error", "message": "Acceso Denegado: Clave de validación master inválida."}), 403
+
+        # 4. MITIGACIÓN IDOR (Aislamiento Multi-Inquilino)
+        # Si no es Administrador Master, validar que la empresa del equipo objetivo sea idéntica a la del supervisor
+        if rol_usuario != "admin" and email_usuario != "pablocaldera1984@gmail.com":
+            doc_target = db.collection(coleccion_origen).document(id_equipo).get()
+            empresa_equipo = ""
+            if doc_target.exists:
+                data_target = doc_target.to_dict()
+                empresa_equipo = data_target.get("cliente", {}).get("empresa") or data_target.get("empresa_id") or data_target.get("empresa")
             
-        print(f" Sentinel SOC: Encolando comando perimetral 00B '{comando_key}' para el computador '{id_equipo}'...")
+            empresa_equipo = str(empresa_equipo).upper() if empresa_equipo else ""
+
+            if empresa_equipo and empresa_usuario and empresa_equipo != empresa_usuario:
+                print(f"🚨 ALERTA SOC: Violación IDOR interceptada. Usuario de {empresa_usuario} intentó alterar equipo de {empresa_equipo}")
+                return jsonify({"status": "error", "message": "Acceso Denegado: Incompatibilidad de inquilino (Cross-Tenant Violation)."}), 403
+
+        # 5. Ejecución / Encolamiento de la Acción OOB
+        print(f" Sentinel SOC: Encolando comando perimetral OOB '{comando_key}' para '{id_equipo}'...")
         
         if comando_key == "generar_auditoria_360":
-            print(f" Sentinel SOC: Executing Auditoría 360 On-Demand para '{id_equipo}'...")
             doc_equipo = db.collection(coleccion_origen).document(id_equipo).get()
             if not doc_equipo.exists:
                 return jsonify({"status": "error", "message": "No hay telemetría previa para auditar este equipo."}), 404
@@ -1487,7 +1554,7 @@ def api_remediar_dispositivo():
                 "accion": comando_key,
                 "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
                 "estado_ejecucion": "pendiente",
-                "token_autorizador_oob": f"VERIFICADO_MFA_{informacion_supervisor['uid']}"
+                "token_autorizador_oob": f"VERIFICADO_MFA_{uid_usuario}"
             }
         })
         return jsonify({"status": "success", "message": "Acción HITL encolada con éxito en la cola persistente offline."}), 200
@@ -1573,10 +1640,10 @@ def api_auditoria_360_sincrona():
             
         token_validacion = datos_solicitud.get("token_validacion")
         id_equipo = datos_solicitud.get("idEquipo")
-        coleccion_origen = datos_solicitud.get("coleccionOrigen", "config_empresas")
+        coleccion_origen = datos_solicitud.get("coleccionOrigen")
         
         if not token_validacion or not id_equipo:
-            return jsonify({"status": "error", "message": "Parámetros suficientes (ID Equipo / Token faltantes)."}), 400
+            return jsonify({"status": "error", "message": "Parámetros insuficientes (ID Equipo / Token faltantes)."}), 400
             
         try:
             informacion_supervisor = firebase_auth.verify_id_token(token_validacion)
@@ -1585,31 +1652,51 @@ def api_auditoria_360_sincrona():
             print(f" Intento de auditoría no autorizado bloqueado: {str(auth_err)}")
             return jsonify({"status": "error", "message": "Acceso Denegado: Firma criptográfica inválida o expirada."}), 403
             
-        telemetria_ref = db.collection(coleccion_origen).document(id_equipo).get()
-        
-        if not telemetria_ref.exists:
-            query = db.collection(coleccion_origen).where("id", "==", id_equipo).limit(1).stream()
-            telemetria_cruda = None
-            for doc in query:
-                telemetria_cruda = doc.to_dict()
+        # 🟢 BÚSQUEDA INTELIGENTE MULTI-COLECCIÓN (PRODUCCIÓN -> SANDBOX FALLBACK)
+        # Prioridad: 1. Colección solicitada explícitamente -> 2. auditoria_global -> 3. auditoria_sandbox
+        colecciones_a_buscar = []
+        if coleccion_origen and coleccion_origen in ["auditoria_global", "auditoria_sandbox"]:
+            colecciones_a_buscar.append(coleccion_origen)
             
-            if not telemetria_cruda:
-                return jsonify({
-                    "status": "error", 
-                    "message": f"No se encontró registro de telemetría activo en la colección {coleccion_origen} para el equipo {id_equipo}."
-                }), 404
-        else:
-            telemetria_cruda = telemetria_ref.to_dict()
+        for col in ["auditoria_global", "auditoria_sandbox"]:
+            if col not in colecciones_a_buscar:
+                colecciones_a_buscar.append(col)
+                
+        telemetria_cruda = None
+        coleccion_encontrada = None
+        
+        # Búsqueda en cascada por ID de documento o campo id
+        for col in colecciones_a_buscar:
+            doc_ref = db.collection(col).document(id_equipo).get()
+            if doc_ref.exists:
+                telemetria_cruda = doc_ref.to_dict()
+                coleccion_encontrada = col
+                break
+            else:
+                q = db.collection(col).where("id", "==", id_equipo).limit(1).stream()
+                for doc_item in q:
+                    telemetria_cruda = doc_item.to_dict()
+                    coleccion_encontrada = col
+                    break
+                if telemetria_cruda:
+                    break
 
-        print(f" Sentinel AI: Iniciando procesamiento forense 360 para {id_equipo}...")
+        if not telemetria_cruda:
+            return jsonify({
+                "status": "error", 
+                "message": f"No se encontró telemetría para el equipo '{id_equipo}' ni en auditoria_global ni en auditoria_sandbox."
+            }), 404
+
+        print(f" Sentinel AI: Procesando auditoría 360 para {id_equipo} (Origen: {coleccion_encontrada})...")
         reporte_estructurado = analizar_telemetria_360(telemetria_cruda)
         
-        if "error" in reporte_estructurado and reporte_estructurado["estado_general"] == "ERROR_ANALISIS":
+        if "error" in reporte_estructurado and reporte_estructurado.get("estado_general") == "ERROR_ANALISIS":
             return jsonify({"status": "error", "message": "El motor analítico de Gemini no pudo estructurar la telemetría"}), 400
 
         return jsonify({
             "status": "success",
             "idEquipo": id_equipo,
+            "coleccionOrigen": coleccion_encontrada,
             "reporte": reporte_estructurado
         }), 200
     except Exception as e:
@@ -1876,7 +1963,7 @@ def generar_reporte_diario():
                     "type": "template",
                     "template": {
                         "name": "resumen_diario_flota",
-                        "language": {"code": "es_CHL"},
+                        "language": {"code": "es_CL"},
                         "components": [
                             {
                                 "type": "body",
@@ -1915,22 +2002,35 @@ def processar_prospectiva_global():
             
             if "almacenamiento_ssd" in d and "vida_util_pct" in d["almacenamiento_ssd"]:
                 historial_flota[key].append({
-                    "timestamp": d["timestamp"],
+                    "timestamp": d.get("timestamp"),
                     "vida_util": float(d["almacenamiento_ssd"]["vida_util_pct"])
                 })
                 
         alertas_creadas = 0
         for key, puntos in historial_flota.items():
             if len(puntos) < 2: continue
-            puntos.sort(key=lambda x: x["timestamp"])
+            puntos.sort(key=lambda x: str(x["timestamp"]))
             empresa_id, usuario_id = key.split('||')
             primero, ultimo = puntos[0], puntos[-1]
+            
+            # Helper de parseo robusto para cadenas ISO o Timestamps nativos
+            def parsear_fecha_segura(ts_val):
+                if isinstance(ts_val, datetime):
+                    return ts_val
+                if hasattr(ts_val, 'to_datetime'):
+                    return ts_val.to_datetime()
+                if isinstance(ts_val, str):
+                    return datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                return datetime.now()
+
             try:
-                dt1 = datetime.fromisoformat(primero["timestamp"].replace("Z", "+00:00"))
-                dt2 = datetime.fromisoformat(ultimo["timestamp"].replace("Z", "+00:00"))
+                dt1 = parsear_fecha_segura(primero["timestamp"])
+                dt2 = parsear_fecha_segura(ultimo["timestamp"])
                 dias = (dt2 - dt1).days
-            except:
+            except Exception as err_date:
+                print(f"! Advertencia al procesar fecha en prospectiva: {str(err_date)}")
                 dias = 0
+                
             if dias <= 0: continue
             tasa = (primero["vida_util"] - ultimo["vida_util"]) / dias
             if tasa > 0:
@@ -2027,52 +2127,53 @@ def webhook_whatsapp():
                     tkt_id = match_aprobar.group(1).upper()
                     forzar_aprobacion = True
 
+            # Bloque con Indentación Corregida:
             if tkt_id and db:
-            tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
-            if tkt_ref.exists:
-                tkt_data = tkt_ref.to_dict()
-                clean_remitente = "".join(re.findall(r"\d+", telefono_remitente))
-                clean_sup = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_supervisor", ""))))
-                clean_adm = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_admin", ""))))
-                
-                if (clean_remitente == clean_sup or clean_remitente == clean_adm):
-                    if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
-                        if forzar_aprobacion:
-                            db.collection("tickets_hitl").document(tkt_id).update({
-                                "estado": "pendiente", 
-                                "aprobado_por": clean_remitente, 
-                                "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
-                            })
-                            
-                            coleccion_destino = tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)
-                            id_equipo_target = tkt_data.get("id_equipo")
-                            
-                            db.collection(coleccion_destino).document(id_equipo_target).set({
-                                "comandos_pendientes": {
-                                    "accion": tkt_data.get("comando_sugerido"), 
-                                    "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
-                                    "estado_ejecucion": "pendiente", 
-                                    "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
-                                }
-                            }, merge=True)
-                            
-                            print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} authorized vía botón por {clean_remitente}")
-                            enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
-                        elif forzar_rechazo:
-                            db.collection("tickets_hitl").document(tkt_id).update({
-                                "estado": "rechazado", 
-                                "rechazado_por": clean_remitente, 
-                                "timestamp_cancelacion": firestore.SERVER_TIMESTAMP
-                            })
-                            print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
-                            enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
-                        return jsonify({"status": "success"}), 200
+                tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
+                if tkt_ref.exists:
+                    tkt_data = tkt_ref.to_dict()
+                    clean_remitente = "".join(re.findall(r"\d+", telefono_remitente))
+                    clean_sup = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_supervisor", ""))))
+                    clean_adm = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_admin", ""))))
+                    
+                    if (clean_remitente == clean_sup or clean_remitente == clean_adm):
+                        if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
+                            if forzar_aprobacion:
+                                db.collection("tickets_hitl").document(tkt_id).update({
+                                    "estado": "pendiente", 
+                                    "aprobado_por": clean_remitente, 
+                                    "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
+                                })
+                                
+                                coleccion_destino = tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)
+                                id_equipo_target = tkt_data.get("id_equipo")
+                                
+                                db.collection(coleccion_destino).document(id_equipo_target).set({
+                                    "comandos_pendientes": {
+                                        "accion": tkt_data.get("comando_sugerido"), 
+                                        "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
+                                        "estado_ejecucion": "pendiente", 
+                                        "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
+                                    }
+                                }, merge=True)
+                                
+                                print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} authorized vía botón por {clean_remitente}")
+                                enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
+                            elif forzar_rechazo:
+                                db.collection("tickets_hitl").document(tkt_id).update({
+                                    "estado": "rechazado", 
+                                    "rechazado_por": clean_remitente, 
+                                    "timestamp_cancelacion": firestore.SERVER_TIMESTAMP
+                                })
+                                print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
+                                enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
+                            return jsonify({"status": "success"}), 200
+                        else:
+                            enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* El Ticket `{tkt_id}` ya fue gestionado previamente por otra línea de administración o por el agente local.")
+                            return jsonify({"status": "error", "message": "Procesado"}), 200
                     else:
-                        enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* El Ticket `{tkt_id}` ya fue gestionado previamente por otra línea de administración o por el agente local.")
-                        return jsonify({"status": "error", "message": "Procesado"}), 200
-                else:
-                    enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
-                    return jsonify({"status": "error", "message": "Denegado"}), 200
+                        enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
+                        return jsonify({"status": "error", "message": "Denegado"}), 200
 
             ahora = datetime.now()
             
@@ -2179,5 +2280,3 @@ def enviar_botones_whatsapp(to, texto, tkt_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-echo "# Force deploy revision - Corregido error de indentacion en HITL" >> main.py
