@@ -29,6 +29,9 @@ COLECCION_TELEMETRIA = "auditoria_sandbox"
 COLECCION_DECISIONES = "auditoria_decisiones_ia"
 COLECCION_CONFIG_EMPRESAS = "config_empresas"
 
+# CONFIGURACIÓN DEL MOTOR DE INTELIGENCIA ARTIFICIAL
+MODELO_GEMINI = "gemini-3.5-flash-lite"
+
 # HARDENING DE INICIALIZACIÓN: Captura segura de contexto de infraestructura para evitar fallas 503
 try:
     if not firebase_admin._apps:
@@ -421,7 +424,7 @@ def analizar_telemetria_360(telemetria_cruda: dict) -> dict:
         client = genai.Client(api_key=api_key_studio)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=MODELO_GEMINI,
             contents=prompt_auditoria,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -469,7 +472,7 @@ def analizar_volcado_ram(datos_plugins: dict) -> dict:
         client = genai.Client(api_key=api_key_studio)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=MODELO_GEMINI,
             contents=prompt_ram,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -507,7 +510,7 @@ def analizar_artefactos_timeline(datos_artefactos: dict) -> dict:
         client = genai.Client(api_key=api_key_studio)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=MODELO_GEMINI,
             contents=prompt_timeline,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -545,7 +548,7 @@ def analizar_identidad_cloud(logs_identidad: dict) -> dict:
         client = genai.Client(api_key=api_key_studio)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=MODELO_GEMINI,
             contents=prompt_itdr_instruction,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -585,7 +588,7 @@ def analizar_superficie_externa(logs_syslog: dict) -> dict:
         client = genai.Client(api_key=api_key_studio)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=MODELO_GEMINI,
             contents=prompt_easm_instruction,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1363,7 +1366,7 @@ def generar_insight_quirurgico(pc_data):
     for intento in range(1, intentos_maximos + 1):
         try:
             chat = client.chats.create(
-                model='gemini-2.5-flash',
+                model=MODELO_GEMINI,
                 config=types.GenerateContentConfig(
                     tools=herramientas_disponibles,
                     system_instruction=prompt_sistema_insight,
@@ -1905,7 +1908,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         client = genai.Client(api_key=api_key_studio)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=MODELO_GEMINI,
             contents=f"{contexto_conversacion}\n\nMensaje actual entrante del supervisor: {texto_usuario}",
             config=types.GenerateContentConfig(
                 system_instruction=PROMPT_SISTEMA_WHATSAPP,
