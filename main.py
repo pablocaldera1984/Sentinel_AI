@@ -138,7 +138,7 @@ guardian_registry.registrar_herramienta("evaluar_roi_y_renovacion_pc", "evaluar_
 guardian_registry.registrar_herramienta("deshabilitar_impresion", "deshabilitar_impresion", "Deshabilita servicio de Spooler local por motivos ecológicos.")
 guardian_registry.registrar_herramienta("desinstalar_agente_local", "desinstalar_agente_local", "Remueve de forma permanente los binarios del agente local.")
 guardian_registry.registrar_herramienta("evaluar_radio_explosion", "evaluar_radio_explosion", "Mide el radio de impacto cruzando niveles de privilegios lógicos.")
-guardian_registry.registrar_herramienta("generar_auditoria_360", "analizar_telemetria_360", "Ejecuta un reporte general cognitivo cruzando hardware y secops.")
+guardian_registry.registrar_herramienta("generar_auditoria_360", None, "Ejecuta un reporte general cognitivo cruzando hardware y secops.")
 guardian_registry.registrar_herramienta("iniciar_triaje_forense", "registrar_evidencia_forense", "Encapsula y resguarda la cadena de custodia bajo ISO 27037.")
 guardian_registry.registrar_herramienta("ejecutar_volatility_ram", "analizar_volcado_ram", "Desensambla volcados de memoria buscando rootkits o malware fileless.")
 guardian_registry.registrar_herramienta("extraer_artefactos_web", "analizar_artefactos_timeline", "Cruza cookies e historiales cazando técnicas de TimeStomp.")
@@ -281,41 +281,41 @@ REGLAS DE FORMATO CRÍTICAS (WhatsApp UX):
 
 # 🟢 TRADUCCIÓN DE LAS 11 AMENAZAS DEL PANEL A RIESGO DE NEGOCIO (WHATSAPP UX)
 DICCIONARIO_AMENAZAS_AMIGABLES = {
-    "COMBINACION_TOXICA": "Intento de secuestro de información y bloqueo masivo de archivos corporativos,",
-    "SHADOW_AI": "Uso de Inteligencia Artificial no autorizada con alto riesgo de fuga de datos de la empresa,",
-    "PHISHING_DNS": "Desvío silencioso de la navegación web, posiblemente hacia páginas bancarias falsas,",
-    "AGENT_HIJACK": "Manipulación maliciosa del asistente de IA mediante un documento peligroso,",
-    "MFA_FATIGUE": "Bombardeo de notificaciones de inicio de sesión para intentar engañar y vulnerar al usuario,",
-    "DEX_DEGRADATION": "Degradación crítica en los componentes físicos o salud del hardware de la estación,",
-    "FILELESS_ATTACK": "Programa invisible intentando tomar el control del equipo vulnerando las políticas de seguridad,",
-    "ITDR": "Un intento de acceso sospechoso o posible robo de credenciales corporativas en las cuentas cloud,",
-    "EASM": "Una vulnerabilidad o brecha de seguridad detectada en el escudo perimetral de internet de la empresa,",
-    "FINOPS_ANOMALY": "Un comportamiento ineficiente en el uso de recursos lógicos o licencias ociosas,",
-    "HELPDESK_COMPROMISE": "Un reseteo sospechoso de accesos en el soporte técnico seguido de inicios de sesión simultáneos vía Single Sign-On (SSO),",
-    "HIGH_TEMPERATURE": "Un sobrecalentamiento crítico por estrés térmico en el procesador principal que pone en riesgo el silicio,",
-    "RAM_SATURATION": "Una saturación extrema de memoria RAM que amenaza con congelar por completo el sistema,",
-    "SSD_DEGRADATION": "Una degradación avanzada de bloques defectuosos y salud crítica en la unidad de almacenamiento,",
-    "BATTERY_WEAR": "Un desgaste químico acelerado en la batería local que compromete la autonomía física,",
-    "COMPLIANCE_BREACH": "Una caída en el bastionado lógico por desactivación de las directivas de seguridad corporativas (Firewall/UAC),"
+    "COMBINACION_TOXICA": "Intento de secuestro de información y bloqueo masivo de archivos corporativos",
+    "SHADOW_AI": "Uso de Inteligencia Artificial no autorizada con alto riesgo de fuga de datos de la empresa",
+    "PHISHING_DNS": "Desvío silencioso de la navegación web, posiblemente hacia páginas bancarias falsas",
+    "AGENT_HIJACK": "Manipulación maliciosa del asistente de IA mediante un documento peligroso",
+    "MFA_FATIGUE": "Bombardeo de notificaciones de inicio de sesión para intentar engañar y vulnerar al usuario",
+    "DEX_DEGRADATION": "Degradación crítica en los componentes físicos o salud del hardware de la estación",
+    "FILELESS_ATTACK": "Programa invisible intentando tomar el control del equipo vulnerando las políticas de seguridad",
+    "ITDR": "Un intento de acceso sospechoso o posible robo de credenciales corporativas en las cuentas cloud",
+    "EASM": "Una vulnerabilidad o brecha de seguridad detectada en el escudo perimetral de internet de la empresa",
+    "FINOPS_ANOMALY": "Un comportamiento ineficiente en el uso de recursos lógicos o licencias ociosas",
+    "HELPDESK_COMPROMISE": "Un reseteo sospechoso de accesos en el soporte técnico seguido de inicios de sesión simultáneos vía Single Sign-On (SSO)",
+    "HIGH_TEMPERATURE": "Un sobrecalentamiento crítico por estrés térmico en el procesador principal que pone en riesgo el silicio",
+    "RAM_SATURATION": "Una saturación extrema de memoria RAM que amenaza con congelar por completo el sistema",
+    "SSD_DEGRADATION": "Una degradación avanzada de bloques defectuosos y salud crítica en la unidad de almacenamiento",
+    "BATTERY_WEAR": "Un desgaste químico acelerado en la batería local que compromete la autonomía física",
+    "COMPLIANCE_BREACH": "Una caída en el bastionado lógico por desactivación de las directivas de seguridad corporativas (Firewall/UAC)"
 }
 
 # 🟢 TRADUCCIÓN DE SOLUCIONES A LENGUAJE DE NEGOCIO (WHATSAPP UX)
 DICCIONARIO_SOLUCIONES_AMIGABLES = {
-    "COMBINACION_TOXICA": "El tráfico anómalo fue bloqueado y los archivos críticos se encuentran bajo aislamiento seguro. El ecosistema ha vuelto a la normalidad,",
-    "SHADOW_AI": "El entorno de ejecución no autorizado fue deshabilitado y se reforzó la política de privacidad de datos de la empresa,",
-    "PHISHING_DNS": "Se restableció la configuración segura de navegación web y se bloquearon los accesos a los portales financieros falsos,",
-    "AGENT_HIJACK": "El asistente de IA fue higienizado y su context de memoria fue restaurado a un estado limpio y seguro,",
-    "MFA_FATIGUE": "Se bloquearon las solicitudes de ráfaga y se coordinó una verificación de identidad segura para el usuario,",
-    "DEX_DEGRADATION": "Se aplicaron directivas de mitigación térmica y se encoló un ticket prioritario de soporte preventivo para el hardware,",
-    "FILELESS_ATTACK": "El proceso invisible fue interceptado y neutralizado con éxito, restableciendo las políticas de ejecución de la estación,",
-    "ITDR": "Las sesiones comprometidas fueron revocadas de inmediato y se aplicó un bloqueo preventivo en la cuenta cloud,",
-    "EASM": "Se bloquearon las IPs atacantes y se reforzó el escudo del firewall perimetral de la empresa,",
-    "FINOPS_ANOMALY": "Se optimizaron los perfiles de energía y se liberaron las suscripciones ociosas recuperando la eficiencia presupuestaria,",
-    "HIGH_TEMPERATURE": "Se purgaron con éxito los subprocesos de alta carga desestabilizantes, reduciendo la curva de estrés en el silicio,",
-    "RAM_SATURATION": "Se forzó la limpieza de buffers huérfanos de memoria RAM de forma remota, recuperando la fluidez operativa,",
-    "SSD_DEGRADATION": "Se ejecutó una optimización electrónica TRIM en la unidad sólida y se encoló un reemplazo de hardware preventivo,",
-    "BATTERY_WEAR": "Se reconfiguró el perfil energético a bajo consumo y se agendó un ticket CAPEX para la sustitución física del componente,",
-    "COMPLIANCE_BREACH": "Se re-inyectaron con éxito las directivas rígidas CIS v8 y se reestableció el escudo del cortafuegos local,"
+    "COMBINACION_TOXICA": "El tráfico anómalo fue bloqueado y los archivos críticos se encuentran bajo aislamiento seguro. El ecosistema ha vuelto a la normalidad",
+    "SHADOW_AI": "El entorno de ejecución no autorizado fue deshabilitado y se reforzó la política de privacidad de datos de la empresa",
+    "PHISHING_DNS": "Se restableció la configuración segura de navegación web y se bloquearon los accesos a los portales financieros falsos",
+    "AGENT_HIJACK": "El asistente de IA fue higienizado y su contexto de memoria fue restaurado a un estado limpio y seguro",
+    "MFA_FATIGUE": "Se bloquearon las solicitudes de ráfaga y se coordinó una verificación de identidad segura para el usuario",
+    "DEX_DEGRADATION": "Se aplicaron directivas de mitigación térmica y se encoló un ticket prioritario de soporte preventivo para el hardware",
+    "FILELESS_ATTACK": "El proceso invisible fue interceptado y neutralizado con éxito, restableciendo las políticas de ejecución de la estación",
+    "ITDR": "Las sesiones comprometidas fueron revocadas de inmediato y se aplicó un bloqueo preventivo en la cuenta cloud",
+    "EASM": "Se bloquearon las IPs atacantes y se reforzó el escudo del firewall perimetral de la empresa",
+    "FINOPS_ANOMALY": "Se optimizaron los perfiles de energía y se liberaron las suscripciones ociosas recuperando la eficiencia presupuestaria",
+    "HIGH_TEMPERATURE": "Se purgaron con éxito los subprocesos de alta carga desestabilizantes, reduciendo la curva de estrés en el silicio",
+    "RAM_SATURATION": "Se forzó la limpieza de buffers huérfanos de memoria RAM de forma remota, recuperando la fluidez operativa",
+    "SSD_DEGRADATION": "Se ejecutó una optimización electrónica TRIM en la unidad sólida y se encoló un reemplazo de hardware preventivo",
+    "BATTERY_WEAR": "Se reconfiguró el perfil energético a bajo consumo y se agendó un ticket CAPEX para la sustitución física del componente",
+    "COMPLIANCE_BREACH": "Se re-inyectaron con éxito las directivas rígidas CIS v8 y se restableció el escudo del cortafuegos local"
 }
 
 # =========================================================================
@@ -894,15 +894,16 @@ def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
         type_num = "plural" if es_plural else "singular"
         accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
         
-        texto_escalamiento = (
-            f"⚠️ *URGENTE* ⚠️\n"
-            f"Te notifico porque el supervisor de *{empresa}* no respondió a una alerta crítica en el último minuto.\n\n"
-            f"Registramos una situación de *{amenaza_amigable}* en el entorno de {entorno_limpio}.\n\n"
-            f"Necesito tu autorización para *{accion_humana}* (Ticket: {tkt_id}). ¿Procedemos?"
+        # 🟢 ENVIAR PLANTILLA AL ADMINISTRADOR POR ESCALAMIENTO (DESPIERTA WHATSAPP)
+        enviar_plantilla_alerta_whatsapp(
+            to=telefono_admin,
+            dispositivo=f"{entorno_limpio} ({empresa})",                           # Rellena {{1}}
+            incidencia=f"⚠️ ESCALAMIENTO URGENTE (Sin Rpta Sup): {amenaza_amigable}", # Rellena {{2}}
+            ticket=tkt_id,                                                        # Rellena {{3}}
+            recomendacion=accion_humana                                           # Rellena {{4}}
         )
         
-        enviar_botones_whatsapp(telefono_admin, texto_escalamiento, tkt_id)
-        print(f"[AIOps ESCALATION] Ticket {tkt_id} escalated con éxito por timeout al administrador {telefono_admin}.")
+        print(f"[AIOps ESCALATION] Ticket {tkt_id} escalado con éxito por plantilla al administrador {telefono_admin}.")
 
     except Exception as e:
         print(f"X Error en hilo asíncrono de escalamiento: {str(e)}")
@@ -930,14 +931,16 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
         type_num = "plural" if es_plural else "singular"
         accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
             
-        mensaje_base = (
-            f"🚨 *ALERTA DE MONITOREO* 🚨\n"
-            f"Nuestro sistema detectó un comportamiento inusual: *{amenaza_amigable}* que afecta al entorno de {entorno_limpio}.\n\n"
-            f"Como medida preventiva, te sugiero *{accion_humana}* de inmediato (Ticket: {tkt_id}). ¿Me autorizas a ejecutar esta protección ahora mismo?"
+        # 🟢 ENVIAR PLANTILLA APROBADA EN META (DESPIERTA A WHATSAPP)
+        enviar_plantilla_alerta_whatsapp(
+            to=telefono_supervisor,
+            dispositivo=entorno_limpio,        # {{1}}
+            incidencia=amenaza_amigable,        # {{2}}
+            ticket=tkt_id,                      # {{3}}
+            recomendacion=accion_humana        # {{4}}
         )
-        
-        enviar_botones_whatsapp(telefono_supervisor, mensaje_base, tkt_id)
-        print(f"[AIOps HITL LOG] Ticket {tkt_id} enviado a Supervisor {telefono_supervisor}. Temporizador de escalamiento fijado en 60s...")
+
+        print(f"[AIOps HITL LOG] Ticket {tkt_id} enviado vía plantilla a Supervisor {telefono_supervisor}. Temporizador de escalamiento fijado en 60s...")
         
         timer_escalamiento = threading.Timer(60.0, esclalar_alerta_admin_hitl, args=[tkt_id, telefono_admin])
         timer_escalamiento.start()
@@ -2094,48 +2097,72 @@ def webhook_whatsapp():
         if 'messages' in entry:
             message_node = entry['messages'][0]
             telefono_remitente = str(message_node['from'])
+            clean_remitente = "".join(re.findall(r"\d+", telefono_remitente))
             
             mensaje_recibido = ""
             button_payload = None
+            button_title = None
             
             if 'text' in message_node:
                 mensaje_recibido = str(message_node['text']['body']).strip()
             elif 'interactive' in message_node and message_node['interactive']['type'] == 'button_reply':
-                button_payload = message_node['interactive']['button_reply']['id']
-                mensaje_recibido = f"[Interacción Botón] {message_node['interactive']['button_reply']['title']}"
+                button_payload = message_node['interactive']['button_reply'].get('id')
+                button_title = message_node['interactive']['button_reply'].get('title')
+                mensaje_recibido = f"[Interacción Botón] {button_title}"
             
             if db:
                 db.collection("registro_comunicaciones_whatsapp").add({
                     "timestamp": firestore.SERVER_TIMESTAMP,
-                    "remitente": "".join(re.findall(r"\d+", telefono_remitente)),
+                    "remitente": clean_remitente,
                     "destinatario": "SENTINEL_AI",
                     "mensaje": mensaje_recibido,
-                    "tipo_canal": "interactive_inbound" if button_payload else "text_inbound"
+                    "tipo_canal": "interactive_inbound" if (button_payload or button_title) else "text_inbound"
                 })
 
             tkt_id = None
             forzar_aprobacion = False
             forzar_rechazo = False
             
-            if button_payload:
-                if button_payload.startswith("APROBAR_"):
-                    tkt_id = button_payload.replace("APROBAR_", "").upper()
+            # 🟢 EVALUACIÓN FLEXIBLE DE BOTONES (SOPORTA PLANTILLAS Y MENSAJES DIRECTOS)
+            if button_payload or button_title:
+                if (button_payload and button_payload.startswith("APROBAR_")) or (button_title and "Aprobar" in button_title):
                     forzar_aprobacion = True
-                elif button_payload.startswith("RECHAZAR_"):
-                    tkt_id = button_payload.replace("RECHAZAR_", "").upper()
+                    if button_payload and button_payload.startswith("APROBAR_"):
+                        tkt_id = button_payload.replace("APROBAR_", "").upper()
+                elif (button_payload and button_payload.startswith("RECHAZAR_")) or (button_title and "Rechazar" in button_title):
                     forzar_rechazo = True
+                    if button_payload and button_payload.startswith("RECHAZAR_"):
+                        tkt_id = button_payload.replace("RECHAZAR_", "").upper()
             else:
                 match_aprobar = re.match(r"^APROBAR\s+(TKT-[0-9]{4})$", mensaje_recibido, re.IGNORECASE)
                 if match_aprobar:
                     tkt_id = match_aprobar.group(1).upper()
                     forzar_aprobacion = True
 
-            # Bloque con Indentación Corregida:
+            # 🟢 BÚSQUEDA AUTOMÁTICA DEL TICKET PENDIENTE SI VIENE DE BOTÓN DE PLANTILLA DE META
+            if (forzar_aprobacion or forzar_rechazo) and not tkt_id and db:
+                # Buscar en Firestore el ticket más reciente pendiente asignado a este teléfono
+                pendientes_sup = db.collection("tickets_hitl")\
+                    .where("telefono_supervisor", "in", [clean_remitente, f"+{clean_remitente}"])\
+                    .where("estado", "==", "pendiente_aprobacion_hitl")\
+                    .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING).limit(1).stream()
+                
+                for doc_p in pendientes_sup:
+                    tkt_id = doc_p.id
+                    
+                if not tkt_id:
+                    pendientes_adm = db.collection("tickets_hitl")\
+                        .where("telefono_admin", "in", [clean_remitente, f"+{clean_remitente}"])\
+                        .where("estado", "==", "pendiente_aprobacion_hitl")\
+                        .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING).limit(1).stream()
+                    for doc_a in pendientes_adm:
+                        tkt_id = doc_a.id
+
+            # 🟢 PROCESAMIENTO DEL TICKET EN FIRESTORE
             if tkt_id and db:
                 tkt_ref = db.collection("tickets_hitl").document(tkt_id).get()
                 if tkt_ref.exists:
                     tkt_data = tkt_ref.to_dict()
-                    clean_remitente = "".join(re.findall(r"\d+", telefono_remitente))
                     clean_sup = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_supervisor", ""))))
                     clean_adm = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_admin", ""))))
                     
@@ -2160,7 +2187,7 @@ def webhook_whatsapp():
                                     }
                                 }, merge=True)
                                 
-                                print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} authorized vía botón por {clean_remitente}")
+                                print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} autorizado vía botón por {clean_remitente}")
                                 enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
                             elif forzar_rechazo:
                                 db.collection("tickets_hitl").document(tkt_id).update({
@@ -2280,6 +2307,51 @@ def enviar_botones_whatsapp(to, texto, tkt_id):
             })
         except Exception as e:
             print(f"! Error logging interactive outbound payload: {str(e)}")
+
+
+def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recomendacion):
+    """Envía la plantilla 'sentinel_security_alert' aprobada por Meta para 'despertar' WhatsApp."""
+    to_clean = "".join(re.findall(r"\d+", str(to)))
+    
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_clean,
+        "type": "template",
+        "template": {
+            "name": "sentinel_security_alert",  # Nombre exacto en Meta
+            "language": {
+                "code": "es"  # Código de idioma asignado en Meta
+            },
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": str(dispositivo)},     # {{1}}
+                        {"type": "text", "text": str(incidencia)},     # {{2}}
+                        {"type": "text", "text": str(ticket)},         # {{3}}
+                        {"type": "text", "text": str(recomendacion)}   # {{4}}
+                    ]
+                }
+            ]
+        }
+    }
+    headers = {"Authorization": f"Bearer {TOKEN_META}", "Content-Type": "application/json"}
+    response = requests.post(URL_META, json=payload, headers=headers)
+    print(f" Meta API Template Response Status: {response.status_code}")
+    
+    if db:
+        try:
+            db.collection("registro_comunicaciones_whatsapp").add({
+                "timestamp": firestore.SERVER_TIMESTAMP,
+                "remitente": "SENTINEL_AI",
+                "destinatario": to_clean,
+                "mensaje": f"[Plantilla Template: sentinel_security_alert] Ticket {ticket}",
+                "tipo_canal": "template_outbound",
+                "ticket_vinculado": ticket
+            })
+        except Exception as e:
+            print(f"! Error logging template outbound payload: {str(e)}")
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
