@@ -2329,18 +2329,18 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
         "to": to_clean,
         "type": "template",
         "template": {
-            "name": "sentinel_security_alert",
+            "name": "sentinel_alert_v1",
             "language": {
-                "code": "es_CL"
+                "code": "es"
             },
             "components": [
                 {
                     "type": "body",
                     "parameters": [
-                        {"type": "text", "text": p1},  # {{1}} Dispositivo
-                        {"type": "text", "text": p2},  # {{2}} Incidencia
-                        {"type": "text", "text": p3},  # {{3}} Ticket
-                        {"type": "text", "text": p4}   # {{4}} Recomendación
+                        {"type": "text", "text": str(dispositivo).replace("\n", " ").strip()},
+                        {"type": "text", "text": str(incidencia).replace("\n", " ").strip()},
+                        {"type": "text", "text": str(ticket_id).replace("\n", " ").strip()},
+                        {"type": "text", "text": str(recomendacion).replace("\n", " ").strip()}
                     ]
                 }
             ]
