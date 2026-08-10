@@ -2339,7 +2339,7 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
                     "parameters": [
                         {"type": "text", "text": str(dispositivo).replace("\n", " ").strip()},
                         {"type": "text", "text": str(incidencia).replace("\n", " ").strip()},
-                        {"type": "text", "text": str(ticket_id).replace("\n", " ").strip()},
+                        {"type": "text", "text": str(ticket).replace("\n", " ").strip()},
                         {"type": "text", "text": str(recomendacion).replace("\n", " ").strip()}
                     ]
                 }
