@@ -2189,6 +2189,7 @@ def webhook_whatsapp():
                                 
                                 print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} autorizado vía botón por {clean_remitente}")
                                 enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
+                                return jsonify({"status": "success"}), 200
                             elif forzar_rechazo:
                                 db.collection("tickets_hitl").document(tkt_id).update({
                                     "estado": "rechazado", 
@@ -2197,13 +2198,17 @@ def webhook_whatsapp():
                                 })
                                 print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
                                 enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
-                            return jsonify({"status": "success"}), 200
+                                return jsonify({"status": "success"}), 200
                         else:
                             enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* El Ticket `{tkt_id}` ya fue gestionado previamente por otra línea de administración o por el agente local.")
                             return jsonify({"status": "error", "message": "Procesado"}), 200
                     else:
                         enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
                         return jsonify({"status": "error", "message": "Denegado"}), 200
+
+            # 🟢 ESCUDO ANTI-GEMINI: Si fue una interacción por botón, detener la ejecución aquí
+            if button_payload or button_title:
+                return jsonify({"status": "success", "message": "Interacción por botón procesada sin pasar a IA conversacional"}), 200
 
             ahora = datetime.now()
             
@@ -2313,23 +2318,29 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
     """Envía la plantilla 'sentinel_security_alert' aprobada por Meta para 'despertar' WhatsApp."""
     to_clean = "".join(re.findall(r"\d+", str(to)))
     
+    # Sanitizar variables para evitar descarte silencioso de Meta (sin saltos de línea)
+    p1 = str(dispositivo).replace("\n", " ").strip()
+    p2 = str(incidencia).replace("\n", " ").strip()
+    p3 = str(ticket).replace("\n", " ").strip()
+    p4 = str(recomendacion).replace("\n", " ").strip()
+    
     payload = {
         "messaging_product": "whatsapp",
         "to": to_clean,
         "type": "template",
         "template": {
-            "name": "sentinel_security_alert",  # Nombre exacto en Meta
+            "name": "sentinel_security_alert",
             "language": {
-                "code": "es_CL"  # 🟢 Cambiado a es_CL para coincidir con Spanish (CHL)
+                "code": "es_CL"
             },
             "components": [
                 {
                     "type": "body",
                     "parameters": [
-                        {"type": "text", "text": str(dispositivo)},     # {{1}}
-                        {"type": "text", "text": str(incidencia)},     # {{2}}
-                        {"type": "text", "text": str(ticket)},         # {{3}}
-                        {"type": "text", "text": str(recomendacion)}   # {{4}}
+                        {"type": "text", "text": p1},  # {{1}} Dispositivo
+                        {"type": "text", "text": p2},  # {{2}} Incidencia
+                        {"type": "text", "text": p3},  # {{3}} Ticket
+                        {"type": "text", "text": p4}   # {{4}} Recomendación
                     ]
                 }
             ]
@@ -2337,7 +2348,9 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
     }
     headers = {"Authorization": f"Bearer {TOKEN_META}", "Content-Type": "application/json"}
     response = requests.post(URL_META, json=payload, headers=headers)
-    print(f" Meta API Template Response Status: {response.status_code}")
+    
+    print(f" Meta API Template Status Code: {response.status_code}")
+    print(f" Meta API Template Response Body: {response.text}")
     
     if db:
         try:
