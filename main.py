@@ -2329,9 +2329,9 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
         "to": to_clean,
         "type": "template",
         "template": {
-            "name": "sentinel_alert_v1",
+            "name": "sentinel_alert_v2",
             "language": {
-                "code": "es_MX"
+                "code": "es_ES"
             },
             "components": [
                 {
