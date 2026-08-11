@@ -83,7 +83,7 @@ if not WHATSAPP_VERIFY_TOKEN:
     raise ValueError("❌ ERROR CRÍTICO: La variable de entorno 'WHATSAPP_VERIFY_TOKEN' no está configurada.")
 
 ID_TELEFONO_META = "1163803370143637"
-URL_META = f"https://graph.facebook.com/v20.0/{ID_TELEFONO_META}/messages"
+URL_META = f"https://graph.facebook.com/v19.0/{ID_TELEFONO_META}/messages"
 
 # =========================================================================
 # 🔒 CENTRALIZACIÓN ATÓMICA DEL PATRÓN GUARDIÁN (EJECUCIÓN DE MEJOR PRÁCTICA)
@@ -2329,9 +2329,9 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
         "to": to_clean,
         "type": "template",
         "template": {
-            "name": "sentinel_security_alert",
+            "name": "sentinel_alert_v2",
             "language": {
-                "code": "es_CL"
+                "code": "es_ES"
             },
             "components": [
                 {
