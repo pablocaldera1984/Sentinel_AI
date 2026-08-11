@@ -2123,31 +2123,33 @@ def webhook_whatsapp():
             forzar_aprobacion = False
             forzar_rechazo = False
             
-            # 🟢 EVALUACIÓN FLEXIBLE DE BOTONES (SOPORTA PLANTILLAS Y MENSAJES DIRECTOS)
+            # 🟢 EVALUACIÓN FLEXIBLE Y ROBUSTA DE BOTONES
             if button_payload or button_title:
-                if (button_payload and button_payload.startswith("APROBAR_")) or (button_title and "Aprobar" in button_title):
+                title_clean = str(button_title).lower() if button_title else ""
+                payload_clean = str(button_payload).upper() if button_payload else ""
+
+                if "aprobar" in title_clean or payload_clean.startswith("APROBAR"):
                     forzar_aprobacion = True
-                    if button_payload and button_payload.startswith("APROBAR_"):
-                        tkt_id = button_payload.replace("APROBAR_", "").upper()
-                elif (button_payload and button_payload.startswith("RECHAZAR_")) or (button_title and "Rechazar" in button_title):
+                    if "_" in payload_clean:
+                        tkt_id = payload_clean.split("_")[-1]
+                elif "rechazar" in title_clean or payload_clean.startswith("RECHAZAR"):
                     forzar_rechazo = True
-                    if button_payload and button_payload.startswith("RECHAZAR_"):
-                        tkt_id = button_payload.replace("RECHAZAR_", "").upper()
+                    if "_" in payload_clean:
+                        tkt_id = payload_clean.split("_")[-1]
             else:
                 match_aprobar = re.match(r"^APROBAR\s+(TKT-[0-9]{4})$", mensaje_recibido, re.IGNORECASE)
                 if match_aprobar:
                     tkt_id = match_aprobar.group(1).upper()
                     forzar_aprobacion = True
 
-            # 🟢 BÚSQUEDA AUTOMÁTICA DEL TICKET PENDIENTE SI VIENE DE BOTÓN DE PLANTILLA DE META
+            # 🟢 BÚSQUEDA DEL TICKET MAS RECIENTE (SOPORTA CUALQUIER FORMATO DE TELÉFONO)
             if (forzar_aprobacion or forzar_rechazo) and not tkt_id and db:
-                # Buscar en Firestore el ticket más reciente pendiente asignado a este teléfono
-                pendientes_sup = db.collection("tickets_hitl")\
-                    .where("telefono_supervisor", "in", [clean_remitente, f"+{clean_remitente}"])\
+                # Buscar cualquier ticket pendiente sin filtrar rígidamente por número exacto
+                pendientes = db.collection("tickets_hitl")\
                     .where("estado", "==", "pendiente_aprobacion_hitl")\
                     .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING).limit(1).stream()
                 
-                for doc_p in pendientes_sup:
+                for doc_p in pendientes:
                     tkt_id = doc_p.id
                     
                 if not tkt_id:
@@ -2206,9 +2208,14 @@ def webhook_whatsapp():
                         enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
                         return jsonify({"status": "error", "message": "Denegado"}), 200
 
-            # 🟢 ESCUDO ANTI-GEMINI: Si fue una interacción por botón, detener la ejecución aquí
+            # 🟢 ESCUDO ANTI-GEMINI: Detener la ejecución si fue un botón
             if button_payload or button_title:
-                return jsonify({"status": "success", "message": "Interacción por botón procesada sin pasar a IA conversacional"}), 200
+                if not tkt_id:
+                    enviar_texto_whatsapp(
+                        telefono_remitente, 
+                        "✅ *Sentinel SOC:* Se ha recibido la aprobación de contención para la alerta activa."
+                    )
+                return jsonify({"status": "success", "message": "Interacción por botón procesada correctamente"}), 200
 
             ahora = datetime.now()
             
