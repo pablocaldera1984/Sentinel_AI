@@ -82,7 +82,7 @@ WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN")
 if not WHATSAPP_VERIFY_TOKEN:
     raise ValueError("❌ ERROR CRÍTICO: La variable de entorno 'WHATSAPP_VERIFY_TOKEN' no está configurada.")
 
-ID_TELEFONO_META = "1163803370143637"
+ID_TELEFONO_META = "1175775235621587"
 URL_META = f"https://graph.facebook.com/v19.0/{ID_TELEFONO_META}/messages"
 
 # =========================================================================
