@@ -2199,25 +2199,45 @@ def webhook_whatsapp():
                     tkt_id = match_aprobar.group(1).upper()
                     forzar_aprobacion = True
 
-            # 🟢 BÚSQUEDA DEL TICKET MÁS RECIENTE EN MEMORIA (SIN REQUERIR ÍNDICES COMPUESTOS)
-            if (forzar_aprobacion or forzar_rechazo) and not tkt_id and db:
+            # 🟢 BÚSQUEDA DEL TICKET MÁS RECIENTE EN FIRESTORE
+            tkt_encontrado_ya_gestionado = False
+
+            if (forzar_aprobacion or forzar_rechazo or button_payload or button_title) and not tkt_id and db:
                 try:
+                    # 1. Buscar primero si existe un ticket PENDIENTE DE APROBACIÓN
                     pendientes_stream = db.collection("tickets_hitl")\
                         .where("estado", "==", "pendiente_aprobacion_hitl").stream()
                     
                     lista_pendientes = list(pendientes_stream)
+                    def obtener_ts_creacion(doc):
+                        data = doc.to_dict()
+                        ts = data.get("timestamp_creacion")
+                        if hasattr(ts, "timestamp"):
+                            return ts.timestamp()
+                        return 0
+
                     if lista_pendientes:
-                        def obtener_ts_creacion(doc):
-                            data = doc.to_dict()
-                            ts = data.get("timestamp_creacion")
-                            if hasattr(ts, "timestamp"):
-                                return ts.timestamp()
-                            return 0
-                        
                         lista_pendientes.sort(key=obtener_ts_creacion, reverse=True)
                         tkt_id = lista_pendientes[0].id
+                    else:
+                        # 2. Si NO hay tickets pendientes, consultar el historial reciente para verificar si ya fue resuelto
+                        todos_stream = db.collection("tickets_hitl").limit(10).stream()
+                        lista_todos = list(todos_stream)
+                        if lista_todos:
+                            lista_todos.sort(key=obtener_ts_creacion, reverse=True)
+                            for doc_item in lista_todos:
+                                u_data = doc_item.to_dict()
+                                c_sup = "".join(re.findall(r"\d+", str(u_data.get("telefono_supervisor", ""))))
+                                c_adm = "".join(re.findall(r"\d+", str(u_data.get("telefono_admin", ""))))
+                                
+                                if (clean_remitente == c_sup or clean_remitente == c_adm or
+                                    (len(c_sup) >= 8 and clean_remitente.endswith(c_sup[-8:])) or
+                                    (len(c_adm) >= 8 and clean_remitente.endswith(c_adm[-8:]))):
+                                    tkt_encontrado_ya_gestionado = True
+                                    tkt_id = doc_item.id
+                                    break
                 except Exception as err_tkt_find:
-                    print(f"! Error buscando ticket pendiente en Firestore: {str(err_tkt_find)}")
+                    print(f"! Error buscando ticket en Firestore: {str(err_tkt_find)}")
 
             # 🟢 PROCESAMIENTO DEL TICKET EN FIRESTORE
             if tkt_id and db:
@@ -2291,18 +2311,26 @@ def webhook_whatsapp():
                                 enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
                                 return jsonify({"status": "success"}), 200
                         else:
-                            enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* El Ticket `{tkt_id}` ya fue gestionado previamente por otra línea de administración o por el agente local.")
-                            return jsonify({"status": "error", "message": "Procesado"}), 200
+                            enviar_texto_whatsapp(
+                                telefono_remitente, 
+                                "❌ *Sentinel SOC:* Esta alerta (o ticket) ya fue gestionada previamente por el Administrador de Global365. La contención se encuentra en curso o fue ejecutada correctamente."
+                            )
+                            return jsonify({"status": "success", "message": "Procesado"}), 200
                     else:
                         enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
                         return jsonify({"status": "error", "message": "Denegado"}), 200
 
             # 🟢 ESCUDO ANTI-GEMINI: Detener la ejecución si fue un botón
             if button_payload or button_title:
-                if not tkt_id:
+                if tkt_encontrado_ya_gestionado:
                     enviar_texto_whatsapp(
                         telefono_remitente, 
-                        "✅ *Sentinel SOC:* Se ha recibido la aprobación de contención para la alerta activa."
+                        "❌ *Sentinel SOC:* Esta alerta (o ticket) ya fue gestionada previamente por el Administrador de Global365. La contención se encuentra en curso o fue ejecutada correctamente."
+                    )
+                elif not tkt_id:
+                    enviar_texto_whatsapp(
+                        telefono_remitente, 
+                        "ℹ️ *Sentinel SOC:* No hay alertas o tickets pendientes de contención activos en este momento."
                     )
                 return jsonify({"status": "success", "message": "Interacción por botón procesada correctamente"}), 200
 
