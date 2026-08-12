@@ -1244,22 +1244,46 @@ def api_simular_infraestructura():
                     if empresa_id:
                         break
 
-        if not empresa_id:
-            return jsonify({"status": "error", "message": f"No se encontró la empresa asociada al equipo {id_equipo} en Firebase."}), 404
+        empresa_id = str(empresa_id).upper() if empresa_id else ""
 
-        empresa_id = str(empresa_id).upper()
-
-        # 3. Búsqueda dinámica de teléfonos en la colección 'usuarios' para la empresa encontrada
+        # 3. Búsqueda flexible de teléfonos de Supervisor y Admin en Firestore
         tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).stream()
-        
-        for d in sup_ref:
-            u_data = d.to_dict()
-            u_rol = str(u_data.get("rol") or u_data.get("role", "")).lower()
-            if "supervisor" in u_rol:
-                tel_supervisor = u_data.get("telefono_whatsapp", "DESCONOCIDO")
-            elif "admin" in u_rol:
-                tel_admin = u_data.get("telefono_whatsapp", "DESCONOCIDO")
+        if db:
+            usuarios_docs = list(db.collection("usuarios").stream())
+            
+            for d in usuarios_docs:
+                u_data = d.to_dict()
+                u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
+                u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                
+                if not u_tel:
+                    continue
+
+                if u_empresa == empresa_id or not empresa_id:
+                    if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
+                        tel_supervisor = str(u_tel)
+                    elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
+                        tel_admin = str(u_tel)
+
+            # Resguardo: usar primer supervisor/admin disponible en la BD si no hubo coincidencia estricta
+            if tel_supervisor == "DESCONOCIDO":
+                for d in usuarios_docs:
+                    u_data = d.to_dict()
+                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                    if "supervisor" in u_rol and u_tel:
+                        tel_supervisor = str(u_tel)
+                        break
+
+            if tel_admin == "DESCONOCIDO":
+                for d in usuarios_docs:
+                    u_data = d.to_dict()
+                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                    if "admin" in u_rol and u_tel:
+                        tel_admin = str(u_tel)
+                        break
 
         # 4. Evaluación de anomalías y despacho
         if tipo_simulacion == "hardware":
@@ -1285,7 +1309,7 @@ def api_simular_infraestructura():
             if not fw or not uac or not bit:
                 solicitar_aprobacion_hitl_whatsapp(id_equipo, "COMPLIANCE_BREACH", "enable_firewall", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         
-        return jsonify({"status": "success", "empresa_procesada": empresa_id}), 200
+        return jsonify({"status": "success", "empresa_procesada": empresa_id, "supervisor_notificado": tel_supervisor}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -2372,8 +2396,16 @@ def webhook_whatsapp():
         print(f"X Error crítico en execution del Webhook: {str(e)}")
         return jsonify({"status": "success"}), 200
 
+# =========================================================================
+# FUNCIONES AUXILIARES DE ENVÍO DE WHATSAPP (TEXTO, BOTONES Y PLANTILLAS)
+# =========================================================================
+
 def enviar_texto_whatsapp(to, texto):
     to_clean = "".join(re.findall(r"\d+", str(to)))
+    if not to_clean:
+        print(f"❌ [AIOps ERROR] Intento de envío de texto abortado: teléfono de destino inválido o 'DESCONOCIDO' (recibido: {to})")
+        return
+
     payload = {"messaging_product": "whatsapp", "to": to_clean, "type": "text", "text": {"body": texto}}
     headers = {"Authorization": f"Bearer {TOKEN_META}", "Content-Type": "application/json"}
     response = requests.post(URL_META, json=payload, headers=headers)
@@ -2391,8 +2423,13 @@ def enviar_texto_whatsapp(to, texto):
         except Exception as err_log:
             print(f"! Error al escribir trazabilidad de WhatsApp en DB: {str(err_log)}")
 
+
 def enviar_botones_whatsapp(to, texto, tkt_id):
     to_clean = "".join(re.findall(r"\d+", str(to)))
+    if not to_clean:
+        print(f"❌ [AIOps ERROR] Intento de envío de botones abortado: teléfono de destino inválido (recibido: {to})")
+        return
+
     payload = {
         "messaging_product": "whatsapp",
         "to": to_clean,
@@ -2441,7 +2478,10 @@ def enviar_botones_whatsapp(to, texto, tkt_id):
 def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recomendacion):
     """Envía la plantilla 'sentinel_security_alert' aprobada por Meta para 'despertar' WhatsApp."""
     to_clean = "".join(re.findall(r"\d+", str(to)))
-    
+    if not to_clean:
+        print(f"❌ [AIOps ERROR] Intento de envío de plantilla Meta abortado: teléfono de destino vacío o 'DESCONOCIDO' (recibido: {to})")
+        return
+
     # Sanitizar variables para evitar descarte silencioso de Meta (sin saltos de línea)
     p1 = str(dispositivo).replace("\n", " ").strip()
     p2 = str(incidencia).replace("\n", " ").strip()
@@ -2461,10 +2501,10 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
                 {
                     "type": "body",
                     "parameters": [
-                        {"type": "text", "text": str(dispositivo).replace("\n", " ").strip()},
-                        {"type": "text", "text": str(incidencia).replace("\n", " ").strip()},
-                        {"type": "text", "text": str(ticket).replace("\n", " ").strip()},
-                        {"type": "text", "text": str(recomendacion).replace("\n", " ").strip()}
+                        {"type": "text", "text": p1},
+                        {"type": "text", "text": p2},
+                        {"type": "text", "text": p3},
+                        {"type": "text", "text": p4}
                     ]
                 }
             ]
