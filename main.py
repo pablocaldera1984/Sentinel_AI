@@ -879,7 +879,15 @@ def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
 
         tkt_data = tkt_ref.to_dict()
         
-        if tkt_data.get("estado") != "pendiente_aprobacion_hitl":
+        # 🟢 VETO DE ESCALAMIENTO: Si el supervisor ya gestionó el ticket, abortar escalamiento
+        estado_actual = tkt_data.get("estado")
+        if estado_actual != "pendiente_aprobacion_hitl":
+            print(f"[AIOps ESCALATION] Ticket {tkt_id} ya se encuentra en estado '{estado_actual}'. Escalamiento al Administrador cancelado.")
+            return
+
+        # 🟢 VALIDACIÓN DE DESTINATARIO: Evitar llamadas con teléfonos inválidos
+        if not telefono_admin or str(telefono_admin).upper() == "DESCONOCIDO":
+            print(f"[AIOps ESCALATION] No se encontró un número de Administrador válido para escalar el ticket {tkt_id}.")
             return
 
         id_equipo = tkt_data.get("id_equipo", "")
@@ -2179,6 +2187,7 @@ def webhook_whatsapp():
                                 
                                 coleccion_destino = tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)
                                 id_equipo_target = tkt_data.get("id_equipo")
+                                amenaza_key = tkt_data.get("amenaza")
                                 
                                 db.collection(coleccion_destino).document(id_equipo_target).set({
                                     "comandos_pendientes": {
@@ -2190,7 +2199,21 @@ def webhook_whatsapp():
                                 }, merge=True)
                                 
                                 print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} autorizado vía botón por {clean_remitente}")
-                                enviar_texto_whatsapp(telefono_remitente, f"✅ *Sentinel SOC:* Acción autorizada. Procesando orden de contención para el ticket `{tkt_id}`...")
+                                
+                                # 1. Respuesta inmediata de recepción
+                                enviar_texto_whatsapp(
+                                    telefono_remitente, 
+                                    f"✅ *Sentinel SOC:* Orden de contención recibida para el ticket `{tkt_id}`. Aplicando aislamiento preventivo del activo..."
+                                )
+                                
+                                # 2. Cierre y resolución automática en 60 segundos
+                                timer_cierre = threading.Timer(
+                                    60.0, 
+                                    simular_resolucion_automatica_whatsapp, 
+                                    args=[id_equipo_target, amenaza_key, tkt_id, telefono_remitente]
+                                )
+                                timer_cierre.start()
+                                
                                 return jsonify({"status": "success"}), 200
                             elif forzar_rechazo:
                                 db.collection("tickets_hitl").document(tkt_id).update({
