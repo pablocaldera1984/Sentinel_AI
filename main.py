@@ -2154,12 +2154,18 @@ def webhook_whatsapp():
             button_payload = None
             button_title = None
             
+            # 🟢 CAPTURA UNIFICADA: TEXTO, BOTONES INTERACTIVOS Y BOTONES DE PLANTILLAS META
             if 'text' in message_node:
                 mensaje_recibido = str(message_node['text']['body']).strip()
-            elif 'interactive' in message_node and message_node['interactive']['type'] == 'button_reply':
+            elif 'interactive' in message_node and message_node['interactive'].get('type') == 'button_reply':
                 button_payload = message_node['interactive']['button_reply'].get('id')
                 button_title = message_node['interactive']['button_reply'].get('title')
                 mensaje_recibido = f"[Interacción Botón] {button_title}"
+            elif 'button' in message_node:
+                # Captura de Quick Reply Buttons de Plantillas Meta (sentinel_alert_v2)
+                button_payload = message_node['button'].get('payload') or message_node['button'].get('text')
+                button_title = message_node['button'].get('text')
+                mensaje_recibido = f"[Botón Plantilla] {button_title}"
             
             if db:
                 db.collection("registro_comunicaciones_whatsapp").add({
