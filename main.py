@@ -2346,7 +2346,16 @@ def webhook_whatsapp():
                         (len(clean_sup) >= 8 and clean_remitente.endswith(clean_sup[-8:])) or
                         (len(clean_adm) >= 8 and clean_remitente.endswith(clean_adm[-8:]))
                     )
-                    
+
+                    # Resguardo: si el ticket tenía "DESCONOCIDO" en el teléfono pero el usuario existe en Firestore como supervisor/admin
+                    if not es_autorizado and db:
+                        u_check = db.collection("usuarios").where(filter=FieldFilter("telefono_whatsapp", "in", [clean_remitente, f"+{clean_remitente}"])).limit(1).stream()
+                        for u_doc in u_check:
+                            u_rol = str(u_doc.to_dict().get("rol") or u_doc.to_dict().get("role", "")).lower()
+                            if "supervisor" in u_rol or "admin" in u_rol:
+                                es_autorizado = True
+                                break
+
                     if es_autorizado:
                         if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
                             if forzar_aprobacion:
