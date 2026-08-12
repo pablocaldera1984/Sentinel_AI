@@ -32,6 +32,9 @@ COLECCION_CONFIG_EMPRESAS = "config_empresas"
 # CONFIGURACIÓN DEL MOTOR DE INTELIGENCIA ARTIFICIAL
 MODELO_GEMINI = "gemini-3.5-flash-lite"
 
+# DICCIONARIO GLOBAL DE TEMPORIZADORES ASINCRÓNICOS (CHAT OPS HITL)
+TIMERS_ACTIVOS = {}
+
 # HARDENING DE INICIALIZACIÓN: Captura segura de contexto de infraestructura para evitar fallas 503
 try:
     if not firebase_admin._apps:
@@ -939,22 +942,23 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
         type_num = "plural" if es_plural else "singular"
         accion_humana = obtener_accion_humana_segura(comando_sugerido, type_num)
             
-        # 🟢 ENVIAR PLANTILLA APROBADA EN META (DESPIERTA A WHATSAPP)
         enviar_plantilla_alerta_whatsapp(
             to=telefono_supervisor,
-            dispositivo=entorno_limpio,        # {{1}}
-            incidencia=amenaza_amigable,        # {{2}}
-            ticket=tkt_id,                      # {{3}}
-            recomendacion=accion_humana        # {{4}}
+            dispositivo=entorno_limpio,
+            incidencia=amenaza_amigable,
+            ticket=tkt_id,
+            recomendacion=accion_humana
         )
 
-        print(f"[AIOps HITL LOG] Ticket {tkt_id} enviado vía plantilla a Supervisor {telefono_supervisor}. Temporizador de escalamiento fijado en 60s...")
+        # Crear y registrar los timers
+        timer_esc = threading.Timer(60.0, esclalar_alerta_admin_hitl, args=[tkt_id, telefono_admin])
+        timer_cie = threading.Timer(120.0, simular_resolucion_automatica_whatsapp, args=[id_equipo, amenaza, tkt_id, telefono_supervisor])
         
-        timer_escalamiento = threading.Timer(60.0, esclalar_alerta_admin_hitl, args=[tkt_id, telefono_admin])
-        timer_escalamiento.start()
-        
-        timer_cierre = threading.Timer(120.0, simular_resolucion_automatica_whatsapp, args=[id_equipo, amenaza, tkt_id, telefono_supervisor])
-        timer_cierre.start()
+        TIMERS_ACTIVOS[f"esc_{tkt_id}"] = timer_esc
+        TIMERS_ACTIVOS[f"cie_{tkt_id}"] = timer_cie
+
+        timer_esc.start()
+        timer_cie.start()
         
         return tkt_id
     except Exception as e:
@@ -1222,18 +1226,42 @@ def api_simular_infraestructura():
             
         payload = request.get_json() or {}
         tipo_simulacion = payload.get("tipo_simulacion")
-        id_equipo = payload.get("dispositivo", "PC-JUAN-DEMO")
-        empresa_id = "GLOBONA" # Tenant por defecto para maquetas administrativas
+        id_equipo = payload.get("dispositivo") or payload.get("idEquipo")
         
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-        for d in sup_ref: 
-            tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-        adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-        for d in adm_ref: 
-            tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+        if not id_equipo:
+            return jsonify({"status": "error", "message": "Identificador de dispositivo no proporcionado."}), 400
 
-        # 🟢 EVALUACIÓN A: ANOMALÍAS DE TELEMETRÍA FÍSICA (HARDWARE SLIDERS)
+        # 1. Obtener empresa_id del payload
+        empresa_id = payload.get("empresa_id") or payload.get("empresaId")
+        
+        # 2. Si no viene en el payload, buscar dinámicamente en Firestore el dueño del PC
+        if not empresa_id:
+            for coleccion in ["auditoria_global", "auditoria_sandbox"]:
+                doc_pc = db.collection(coleccion).document(id_equipo).get()
+                if doc_pc.exists:
+                    datos_pc = doc_pc.to_dict()
+                    empresa_id = datos_pc.get("empresa_id") or datos_pc.get("cliente", {}).get("empresa")
+                    if empresa_id:
+                        break
+
+        if not empresa_id:
+            return jsonify({"status": "error", "message": f"No se encontró la empresa asociada al equipo {id_equipo} en Firebase."}), 404
+
+        empresa_id = str(empresa_id).upper()
+
+        # 3. Búsqueda dinámica de teléfonos en la colección 'usuarios' para la empresa encontrada
+        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
+        sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).stream()
+        
+        for d in sup_ref:
+            u_data = d.to_dict()
+            u_rol = str(u_data.get("rol") or u_data.get("role", "")).lower()
+            if "supervisor" in u_rol:
+                tel_supervisor = u_data.get("telefono_whatsapp", "DESCONOCIDO")
+            elif "admin" in u_rol:
+                tel_admin = u_data.get("telefono_whatsapp", "DESCONOCIDO")
+
+        # 4. Evaluación de anomalías y despacho
         if tipo_simulacion == "hardware":
             temp = payload.get("cpu_temperatura_c", 65)
             ram = payload.get("ram_pct", 45)
@@ -1249,7 +1277,6 @@ def api_simular_infraestructura():
             elif wear > 60:
                 solicitar_aprobacion_hitl_whatsapp(id_equipo, "BATTERY_WEAR", "evaluar_roi_y_renovacion_pc", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
 
-        # 🟢 EVALUACIÓN B: CAÍDA DE COMPLIANCE CORPORATIVO (TOGGLE SWITCHES)
         elif tipo_simulacion == "compliance":
             fw = payload.get("firewall_activo", True)
             uac = payload.get("uac_activo", True)
@@ -1258,7 +1285,7 @@ def api_simular_infraestructura():
             if not fw or not uac or not bit:
                 solicitar_aprobacion_hitl_whatsapp(id_equipo, "COMPLIANCE_BREACH", "enable_firewall", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         
-        return jsonify({"status": "success"}), 200
+        return jsonify({"status": "success", "empresa_procesada": empresa_id}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -2068,6 +2095,22 @@ def processar_prospectiva_global():
         print(f"X Error en Prospectiva: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# =========================================================================
+# FUNCIÓN AUXILIAR DE CANCELACIÓN DE TEMPORIZADORES (HITL)
+# =========================================================================
+def cancelar_timers_ticket(tkt_id):
+    """Cancela los temporizadores de escalamiento y simulación si el ticket es gestionado antes del timeout."""
+    if not tkt_id:
+        return
+    for key in [f"esc_{tkt_id}", f"cie_{tkt_id}"]:
+        if key in TIMERS_ACTIVOS:
+            try:
+                TIMERS_ACTIVOS[key].cancel()
+                del TIMERS_ACTIVOS[key]
+                print(f"[AIOps HITL] Temporizador {key} cancelado exitosamente.")
+            except Exception as e:
+                print(f"! Error cancelando temporizador {key}: {str(e)}")
+
 
 # =========================================================================
 # WEBHOOK INTERACTIVO WHATSAPP (VALIDACIÓN ANTI-SPOOFING METAMÁTICA)
@@ -2179,6 +2222,9 @@ def webhook_whatsapp():
                     if (clean_remitente == clean_sup or clean_remitente == clean_adm):
                         if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
                             if forzar_aprobacion:
+                                # 🟢 CANCELAR TEMPORIZADORES DE ESCALAMIENTO AL APROBAR
+                                cancelar_timers_ticket(tkt_id)
+
                                 db.collection("tickets_hitl").document(tkt_id).update({
                                     "estado": "pendiente", 
                                     "aprobado_por": clean_remitente, 
@@ -2212,10 +2258,14 @@ def webhook_whatsapp():
                                     simular_resolucion_automatica_whatsapp, 
                                     args=[id_equipo_target, amenaza_key, tkt_id, telefono_remitente]
                                 )
+                                TIMERS_ACTIVOS[f"cie_res_{tkt_id}"] = timer_cierre
                                 timer_cierre.start()
                                 
                                 return jsonify({"status": "success"}), 200
                             elif forzar_rechazo:
+                                # 🟢 CANCELAR TEMPORIZADORES DE ESCALAMIENTO AL RECHAZAR
+                                cancelar_timers_ticket(tkt_id)
+
                                 db.collection("tickets_hitl").document(tkt_id).update({
                                     "estado": "rechazado", 
                                     "rechazado_por": clean_remitente, 
