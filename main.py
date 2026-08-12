@@ -1011,15 +1011,39 @@ def api_itdr_analisis():
             print(f"! Fallo no bloqueante en Trazabilidad ITDR: {str(err_trace)}")
             
         try:
-            tel_supervisor = "DESCONOCIDO"
-            tel_admin = "DESCONOCIDO"
+            tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
             if db:
-                usuarios_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-                for doc in usuarios_ref:
-                    tel_supervisor = doc.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-                admin_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-                for doc in admin_ref:
-                    tel_admin = doc.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+                usuarios_docs = list(db.collection("usuarios").stream())
+                for d in usuarios_docs:
+                    u_data = d.to_dict()
+                    u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
+                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                    
+                    if not u_tel: continue
+                    if u_empresa == empresa_id or not empresa_id or empresa_id == "DESCONOCIDA":
+                        if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
+                            tel_supervisor = str(u_tel)
+                        elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
+                            tel_admin = str(u_tel)
+
+                if tel_supervisor == "DESCONOCIDO":
+                    for d in usuarios_docs:
+                        u_data = d.to_dict()
+                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                        if "supervisor" in u_rol and u_tel:
+                            tel_supervisor = str(u_tel)
+                            break
+
+                if tel_admin == "DESCONOCIDO":
+                    for d in usuarios_docs:
+                        u_data = d.to_dict()
+                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                        if "admin" in u_rol and u_tel:
+                            tel_admin = str(u_tel)
+                            break
 
             if reporte_itdr.get("compromiso_identidad") or reporte_itdr.get("nivel_riesgo") in ["CRITICO", "ALTO"]:
                 solicitar_aprobacion_hitl_whatsapp(
@@ -1043,7 +1067,6 @@ def api_itdr_analisis():
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/itdr/analisis: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo interno en el túnel perimetral ITDR: {str(e)}"}), 500
-
 
 @app.route('/api/easm/analisis', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per minute")
@@ -1087,15 +1110,39 @@ def api_easm_analisis():
             print(f"! Fallo no bloqueante en Trazabilidad o Logging EASM: {str(err_trace)}")
             
         try:
-            tel_supervisor = "DESCONOCIDO"
-            tel_admin = "DESCONOCIDO"
+            tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
             if db:
-                usuarios_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-                for doc in usuarios_ref:
-                    tel_supervisor = doc.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-                admin_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-                for doc in admin_ref:
-                    tel_admin = doc.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+                usuarios_docs = list(db.collection("usuarios").stream())
+                for d in usuarios_docs:
+                    u_data = d.to_dict()
+                    u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
+                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                    
+                    if not u_tel: continue
+                    if u_empresa == empresa_id or not empresa_id or empresa_id == "DESCONOCIDA":
+                        if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
+                            tel_supervisor = str(u_tel)
+                        elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
+                            tel_admin = str(u_tel)
+
+                if tel_supervisor == "DESCONOCIDO":
+                    for d in usuarios_docs:
+                        u_data = d.to_dict()
+                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                        if "supervisor" in u_rol and u_tel:
+                            tel_supervisor = str(u_tel)
+                            break
+
+                if tel_admin == "DESCONOCIDO":
+                    for d in usuarios_docs:
+                        u_data = d.to_dict()
+                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                        if "admin" in u_rol and u_tel:
+                            tel_admin = str(u_tel)
+                            break
 
             if reporte_easm.get("perimetro_vulnerable") or reporte_easm.get("nivel_riesgo") in ["CRITICO", "ALTO"]:
                 solicitar_aprobacion_hitl_whatsapp(
@@ -1120,7 +1167,6 @@ def api_easm_analisis():
         print(f"X Caída catastrófica controlada en endpoint /api/easm/analisis: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo interno en el clúster analítico EASM: {str(e)}"}), 500
 
-
 # =========================================================================
 # 🟢 CONSTRUCTOR DINÁMICO DE ENDPOINTS DE ANÁLISIS (MITIGACIÓN PUNTO 7 - DRY)
 # =========================================================================
@@ -1143,7 +1189,6 @@ def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
             empresa_id = datos_solicitud.get("empresaId", "DESCONOCIDA").upper()
             id_equipo = datos_solicitud.get("idEquipo", "EQUIPO_DESCONOCIDO")
 
-            # Extraer cualquier payload de logs contextuales enviado desde el frontend
             logs_contextuales = (
                 datos_solicitud.get("logsSecops") or 
                 datos_solicitud.get("logsShadow") or 
@@ -1160,7 +1205,6 @@ def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
             except: 
                 return jsonify({"status": "error", "message": "Firma criptográfica inválida."}), 403
 
-            # Registrar la trazabilidad del incidente en auditoria_decisiones_ia
             try:
                 db.collection(COLECCION_DECISIONES).add({
                     "tipo": f"ANALISIS_{amenaza_key}",
@@ -1175,14 +1219,38 @@ def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
                 print(f"! Error no bloqueante al registrar decisión de simulación: {str(err_log)}")
 
             tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-            
-            sup_ref = db.collection("usuarios").where(filter=FieldFilter("empresa_id", "==", empresa_id)).where(filter=FieldFilter("rol", "==", "supervisor")).limit(1).stream()
-            for d in sup_ref: 
-                tel_supervisor = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
-                
-            adm_ref = db.collection("usuarios").where(filter=FieldFilter("rol", "==", "admin")).limit(1).stream()
-            for d in adm_ref: 
-                tel_admin = d.to_dict().get("telefono_whatsapp", "DESCONOCIDO")
+            if db:
+                usuarios_docs = list(db.collection("usuarios").stream())
+                for d in usuarios_docs:
+                    u_data = d.to_dict()
+                    u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
+                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                    
+                    if not u_tel: continue
+                    if u_empresa == empresa_id or not empresa_id or empresa_id == "DESCONOCIDA":
+                        if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
+                            tel_supervisor = str(u_tel)
+                        elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
+                            tel_admin = str(u_tel)
+
+                if tel_supervisor == "DESCONOCIDO":
+                    for d in usuarios_docs:
+                        u_data = d.to_dict()
+                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                        if "supervisor" in u_rol and u_tel:
+                            tel_supervisor = str(u_tel)
+                            break
+
+                if tel_admin == "DESCONOCIDO":
+                    for d in usuarios_docs:
+                        u_data = d.to_dict()
+                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                        if "admin" in u_rol and u_tel:
+                            tel_admin = str(u_tel)
+                            break
 
             solicitar_aprobacion_hitl_whatsapp(
                 id_equipo=id_equipo, 
