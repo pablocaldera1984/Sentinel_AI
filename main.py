@@ -2199,23 +2199,25 @@ def webhook_whatsapp():
                     tkt_id = match_aprobar.group(1).upper()
                     forzar_aprobacion = True
 
-            # 🟢 BÚSQUEDA DEL TICKET MAS RECIENTE (SOPORTA CUALQUIER FORMATO DE TELÉFONO)
+            # 🟢 BÚSQUEDA DEL TICKET MÁS RECIENTE EN MEMORIA (SIN REQUERIR ÍNDICES COMPUESTOS)
             if (forzar_aprobacion or forzar_rechazo) and not tkt_id and db:
-                # Buscar cualquier ticket pendiente sin filtrar rígidamente por número exacto
-                pendientes = db.collection("tickets_hitl")\
-                    .where("estado", "==", "pendiente_aprobacion_hitl")\
-                    .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING).limit(1).stream()
-                
-                for doc_p in pendientes:
-                    tkt_id = doc_p.id
+                try:
+                    pendientes_stream = db.collection("tickets_hitl")\
+                        .where("estado", "==", "pendiente_aprobacion_hitl").stream()
                     
-                if not tkt_id:
-                    pendientes_adm = db.collection("tickets_hitl")\
-                        .where("telefono_admin", "in", [clean_remitente, f"+{clean_remitente}"])\
-                        .where("estado", "==", "pendiente_aprobacion_hitl")\
-                        .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING).limit(1).stream()
-                    for doc_a in pendientes_adm:
-                        tkt_id = doc_a.id
+                    lista_pendientes = list(pendientes_stream)
+                    if lista_pendientes:
+                        def obtener_ts_creacion(doc):
+                            data = doc.to_dict()
+                            ts = data.get("timestamp_creacion")
+                            if hasattr(ts, "timestamp"):
+                                return ts.timestamp()
+                            return 0
+                        
+                        lista_pendientes.sort(key=obtener_ts_creacion, reverse=True)
+                        tkt_id = lista_pendientes[0].id
+                except Exception as err_tkt_find:
+                    print(f"! Error buscando ticket pendiente en Firestore: {str(err_tkt_find)}")
 
             # 🟢 PROCESAMIENTO DEL TICKET EN FIRESTORE
             if tkt_id and db:
@@ -2225,7 +2227,15 @@ def webhook_whatsapp():
                     clean_sup = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_supervisor", ""))))
                     clean_adm = "".join(re.findall(r"\d+", str(tkt_data.get("telefono_admin", ""))))
                     
-                    if (clean_remitente == clean_sup or clean_remitente == clean_adm):
+                    # Validación flexible de remitente autorizador (soporta variaciones de código de país)
+                    es_autorizado = (
+                        clean_remitente == clean_sup or 
+                        clean_remitente == clean_adm or 
+                        (len(clean_sup) >= 8 and clean_remitente.endswith(clean_sup[-8:])) or
+                        (len(clean_adm) >= 8 and clean_remitente.endswith(clean_adm[-8:]))
+                    )
+                    
+                    if es_autorizado:
                         if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
                             if forzar_aprobacion:
                                 # 🟢 CANCELAR TEMPORIZADORES DE ESCALAMIENTO AL APROBAR
@@ -2258,7 +2268,7 @@ def webhook_whatsapp():
                                     f"✅ *Sentinel SOC:* Orden de contención recibida para el ticket `{tkt_id}`. Aplicando aislamiento preventivo del activo..."
                                 )
                                 
-                                # 2. Cierre y resolución automática en 60 segundos
+                                # 2. Cierre y resolución automática simulada a los 60 segundos
                                 timer_cierre = threading.Timer(
                                     60.0, 
                                     simular_resolucion_automatica_whatsapp, 
