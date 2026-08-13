@@ -2297,11 +2297,10 @@ def webhook_whatsapp():
 
             if (forzar_aprobacion or forzar_rechazo or button_payload or button_title) and not tkt_id and db:
                 try:
-                    # 1. Buscar primero si existe un ticket PENDIENTE DE APROBACIÓN
-                    pendientes_stream = db.collection("tickets_hitl")\
-                        .where("estado", "==", "pendiente_aprobacion_hitl").stream()
+                    # Consultar el historial de tickets recientes vinculados al usuario
+                    todos_stream = db.collection("tickets_hitl").limit(20).stream()
+                    lista_todos = list(todos_stream)
                     
-                    lista_pendientes = list(pendientes_stream)
                     def obtener_ts_creacion(doc):
                         data = doc.to_dict()
                         ts = data.get("timestamp_creacion")
@@ -2309,26 +2308,21 @@ def webhook_whatsapp():
                             return ts.timestamp()
                         return 0
 
-                    if lista_pendientes:
-                        lista_pendientes.sort(key=obtener_ts_creacion, reverse=True)
-                        tkt_id = lista_pendientes[0].id
-                    else:
-                        # 2. Si NO hay tickets pendientes, consultar el historial reciente para verificar si ya fue resuelto
-                        todos_stream = db.collection("tickets_hitl").limit(10).stream()
-                        lista_todos = list(todos_stream)
-                        if lista_todos:
-                            lista_todos.sort(key=obtener_ts_creacion, reverse=True)
-                            for doc_item in lista_todos:
-                                u_data = doc_item.to_dict()
-                                c_sup = "".join(re.findall(r"\d+", str(u_data.get("telefono_supervisor", ""))))
-                                c_adm = "".join(re.findall(r"\d+", str(u_data.get("telefono_admin", ""))))
+                    if lista_todos:
+                        lista_todos.sort(key=obtener_ts_creacion, reverse=True)
+                        for doc_item in lista_todos:
+                            u_data = doc_item.to_dict()
+                            c_sup = "".join(re.findall(r"\d+", str(u_data.get("telefono_supervisor", ""))))
+                            c_adm = "".join(re.findall(r"\d+", str(u_data.get("telefono_admin", ""))))
+                            
+                            if (clean_remitente == c_sup or clean_remitente == c_adm or
+                                (len(c_sup) >= 8 and clean_remitente.endswith(c_sup[-8:])) or
+                                (len(c_adm) >= 8 and clean_remitente.endswith(c_adm[-8:]))):
                                 
-                                if (clean_remitente == c_sup or clean_remitente == c_adm or
-                                    (len(c_sup) >= 8 and clean_remitente.endswith(c_sup[-8:])) or
-                                    (len(c_adm) >= 8 and clean_remitente.endswith(c_adm[-8:]))):
+                                tkt_id = doc_item.id
+                                if u_data.get("estado") != "pendiente_aprobacion_hitl":
                                     tkt_encontrado_ya_gestionado = True
-                                    tkt_id = doc_item.id
-                                    break
+                                break
                 except Exception as err_tkt_find:
                     print(f"! Error buscando ticket en Firestore: {str(err_tkt_find)}")
 
@@ -2583,6 +2577,28 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
                         {"type": "text", "text": p2},
                         {"type": "text", "text": p3},
                         {"type": "text", "text": p4}
+                    ]
+                },
+                {
+                    "type": "button",
+                    "sub_type": "quick_reply",
+                    "index": "0",
+                    "parameters": [
+                        {
+                            "type": "payload",
+                            "payload": f"APROBAR_{ticket}"
+                        }
+                    ]
+                },
+                {
+                    "type": "button",
+                    "sub_type": "quick_reply",
+                    "index": "1",
+                    "parameters": [
+                        {
+                            "type": "payload",
+                            "payload": f"RECHAZAR_{ticket}"
+                        }
                     ]
                 }
             ]
