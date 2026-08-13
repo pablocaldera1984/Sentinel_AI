@@ -2357,66 +2357,66 @@ def webhook_whatsapp():
                                 break
 
                     if es_autorizado:
-                        if tkt_data.get("estado") == "pendiente_aprobacion_hitl":
-                            if forzar_aprobacion:
-                                # 🟢 CANCELAR TEMPORIZADORES DE ESCALAMIENTO AL APROBAR
-                                cancelar_timers_ticket(tkt_id)
-
-                                db.collection("tickets_hitl").document(tkt_id).update({
-                                    "estado": "pendiente", 
-                                    "aprobado_por": clean_remitente, 
-                                    "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
-                                })
-                                
-                                coleccion_destino = tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)
-                                id_equipo_target = tkt_data.get("id_equipo")
-                                amenaza_key = tkt_data.get("amenaza")
-                                
-                                db.collection(coleccion_destino).document(id_equipo_target).set({
-                                    "comandos_pendientes": {
-                                        "accion": tkt_data.get("comando_sugerido"), 
-                                        "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
-                                        "estado_ejecucion": "pendiente", 
-                                        "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
-                                    }
-                                }, merge=True)
-                                
-                                print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} autorizado vía botón por {clean_remitente}")
-                                
-                                # 1. Respuesta inmediata de recepción
-                                enviar_texto_whatsapp(
-                                    telefono_remitente, 
-                                    f"✅ *Sentinel SOC:* Orden de contención recibida para el ticket `{tkt_id}`. Aplicando aislamiento preventivo del activo..."
-                                )
-                                
-                                # 2. Cierre y resolución automática simulada a los 60 segundos
-                                timer_cierre = threading.Timer(
-                                    60.0, 
-                                    simular_resolucion_automatica_whatsapp, 
-                                    args=[id_equipo_target, amenaza_key, tkt_id, telefono_remitente]
-                                )
-                                TIMERS_ACTIVOS[f"cie_res_{tkt_id}"] = timer_cierre
-                                timer_cierre.start()
-                                
-                                return jsonify({"status": "success"}), 200
-                            elif forzar_rechazo:
-                                # 🟢 CANCELAR TEMPORIZADORES DE ESCALAMIENTO AL RECHAZAR
-                                cancelar_timers_ticket(tkt_id)
-
-                                db.collection("tickets_hitl").document(tkt_id).update({
-                                    "estado": "rechazado", 
-                                    "rechazado_por": clean_remitente, 
-                                    "timestamp_cancelacion": firestore.SERVER_TIMESTAMP
-                                })
-                                print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
-                                enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
-                                return jsonify({"status": "success"}), 200
-                        else:
+                        estado_actual = tkt_data.get("estado")
+                        
+                        # 🟢 CORRECCIÓN DEFINITIVA: Si el ticket YA NO está pendiente, detener todo de inmediato
+                        if estado_actual != "pendiente_aprobacion_hitl":
                             enviar_texto_whatsapp(
                                 telefono_remitente, 
-                                "❌ *Sentinel SOC:* Esta alerta (o ticket) ya fue gestionada previamente por el Administrador de Global365. La contención se encuentra en curso o fue ejecutada correctamente."
+                                "❌ *Sentinel SOC:* Esta alerta (o ticket) ya fue gestionada previamente por la organización. La contención se encuentra en curso o fue ejecutada correctamente."
                             )
-                            return jsonify({"status": "success", "message": "Procesado"}), 200
+                            return jsonify({"status": "success", "message": "Ticket ya gestionado previamente"}), 200
+
+                        if forzar_aprobacion:
+                            cancelar_timers_ticket(tkt_id)
+
+                            db.collection("tickets_hitl").document(tkt_id).update({
+                                "estado": "pendiente", 
+                                "aprobado_por": clean_remitente, 
+                                "timestamp_autorizacion": firestore.SERVER_TIMESTAMP
+                            })
+                            
+                            coleccion_destino = tkt_data.get("coleccion_origen", COLECCION_TELEMETRIA)
+                            id_equipo_target = tkt_data.get("id_equipo")
+                            amenaza_key = tkt_data.get("amenaza")
+                            
+                            db.collection(coleccion_destino).document(id_equipo_target).set({
+                                "comandos_pendientes": {
+                                    "accion": tkt_data.get("comando_sugerido"), 
+                                    "timestamp_solicitud": firestore.SERVER_TIMESTAMP, 
+                                    "estado_ejecucion": "pendiente", 
+                                    "token_autorizador_oob": f"VERIFICADO_CHATOPS_BOTON_{tkt_id}"
+                                }
+                            }, merge=True)
+                            
+                            print(f"[AIOps HITL SUCCESS] Ticket {tkt_id} autorizado vía botón por {clean_remitente}")
+                            
+                            enviar_texto_whatsapp(
+                                telefono_remitente, 
+                                f"✅ *Sentinel SOC:* Orden de contención recibida para el ticket `{tkt_id}`. Aplicando aislamiento preventivo del activo..."
+                            )
+                            
+                            timer_cierre = threading.Timer(
+                                60.0, 
+                                simular_resolucion_automatica_whatsapp, 
+                                args=[id_equipo_target, amenaza_key, tkt_id, telefono_remitente]
+                            )
+                            TIMERS_ACTIVOS[f"cie_res_{tkt_id}"] = timer_cierre
+                            timer_cierre.start()
+                            
+                            return jsonify({"status": "success"}), 200
+
+                        elif forzar_rechazo:
+                            cancelar_timers_ticket(tkt_id)
+
+                            db.collection("tickets_hitl").document(tkt_id).update({
+                                "estado": "rechazado", 
+                                "rechazado_por": clean_remitente, 
+                                "timestamp_cancelacion": firestore.SERVER_TIMESTAMP
+                            })
+                            print(f"[AIOps HITL REJECT] Ticket {tkt_id} cancelado vía botón por {clean_remitente}")
+                            enviar_texto_whatsapp(telefono_remitente, f"❌ *Sentinel SOC:* Alerta cancelada. El ticket `{tkt_id}` ha sido archivado en estado rechazado.")
+                            return jsonify({"status": "success"}), 200
                     else:
                         enviar_texto_whatsapp(telefono_remitente, "❌ *Sentinel SOC:* Privilegios de identidad insuficientes para alterar este ticket.")
                         return jsonify({"status": "error", "message": "Denegado"}), 200
