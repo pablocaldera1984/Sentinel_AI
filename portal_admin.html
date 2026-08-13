@@ -1049,11 +1049,25 @@ html += `<div class="glass-card p-6 rounded-2xl border border-white/5 flex flex-
 grid.innerHTML = html || '<div class="col-span-full py-20 text-center opacity-40 uppercase font-black">Sin dispositivos</div>';
 }
 
+// Helper universal para extraer la empresa del objeto de dispositivo
+function obtenerEmpresaTarget(dev) {
+    if (!dev) return "GLOBAL365";
+    return dev.cliente?.empresa || dev.empresa_id || dev.empresa || "GLOBAL365";
+}
+
 function populateSimulationSelector() {
-const select = document.getElementById("sim-select-device"); if (!select) return;
-const currentVal = select.value; select.innerHTML = '<option value="">-- SELECCIONAR EQUIPO OBJETIVO --</option>';
-Object.values(allDevices).forEach(d => { select.innerHTML += `<option value="${d.id}">${escapeHTML((d.cliente?.empresa || "DESCONOCIDA").toUpperCase())} || ${escapeHTML((d.cliente?.usuario || "ADMIN").toUpperCase())}</option>`; });
-if (currentVal) select.value = currentVal;
+    const select = document.getElementById("sim-select-device"); if (!select) return;
+    const currentVal = select.value || (dispositivoSimuladoTarget ? dispositivoSimuladoTarget.id : "");
+    select.innerHTML = '<option value="">-- SELECCIONAR EQUIPO OBJETIVO --</option>';
+    Object.values(allDevices).forEach(d => {
+        const emp = obtenerEmpresaTarget(d).toUpperCase();
+        const usr = (d.cliente?.usuario || d.usuario || d.nombre_usuario || d.id).toUpperCase();
+        select.innerHTML += `<option value="${d.id}">${escapeHTML(emp)} || ${escapeHTML(usr)}</option>`;
+    });
+    if (currentVal) {
+        select.value = currentVal;
+        dispositivoSimuladoTarget = Object.values(allDevices).find(d => d.id === select.value) || dispositivoSimuladoTarget;
+    }
 }
 
 function setupSimulationListeners() {
@@ -1136,8 +1150,13 @@ function setupSimulationListeners() {
     });
 
     // Envío masivo unificado ("Forzar Telemetría a la Flota")
-    document.getElementById("btn-dispatch-simulation")?.addEventListener('click', async () => {
+document.getElementById("btn-dispatch-simulation")?.addEventListener('click', async () => {
         if (!dispositivoSimuladoTarget) return alert("Selecciona un equipo primero.");
+        
+        const btn = document.getElementById("btn-dispatch-simulation");
+        btn.disabled = true;
+        btn.innerText = "DESPACHANDO TELEMETRÍA...";
+
         try {
             const ref = doc(db, dispositivoSimuladoTarget.fuente, dispositivoSimuladoTarget.id);
             const scoreCalculado = (document.getElementById("sim-firewall").checked && document.getElementById("sim-uac").checked && document.getElementById("sim-av-rtp").checked) ? 100 : 45;
@@ -1187,10 +1206,37 @@ function setupSimulationListeners() {
                     }
                 } 
             };
+
+            // 1. Mantenemos el guardado en Firestore para actualizar los portales web
             await updateDoc(ref, payload); 
-            alert("Mapeo completo de telemetría inyectado en Firestore.");
+
+            // 2. AGREGADO: Enlace en tiempo real con main.py para desencadenar evaluación e IA
+            const token = await auth.currentUser.getIdToken(true);
+            const response = await fetch(`${URL_BACKEND}/api/simular-infraestructura`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    tipo_simulacion: "general_telemetry",
+                    id_equipo: dispositivoSimuladoTarget.id,
+                    empresa_id: obtenerEmpresaTarget(dispositivoSimuladoTarget),
+                    telemetria: payload
+                })
+            });
+
+            if (response.ok) {
+                alert("✅ Telemetría general despachada con éxito. Sentinel AI evaluó los umbrales.");
+            } else {
+                alert("⚠️ Telemetría guardada en Firestore, pero el backend no pudo procesar la evaluación.");
+            }
         } catch(err) { 
+            console.error("Error al despachar simulación:", err);
             alert("Error al despachar simulación."); 
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Forzar Telemetría a la Flota";
         }
     });
 
@@ -1222,7 +1268,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token,
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA",
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget),
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsIdentidad: {
                             incidente: "ITDR",
@@ -1265,7 +1311,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token,
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA",
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget),
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsSyslog: {
                             incidente: "EASM",
@@ -1308,7 +1354,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token,
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA",
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget),
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsSecops: {
                             incidente: "COMBINACION_TOXICA",
@@ -1354,7 +1400,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token,
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA",
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget),
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsShadow: {
                             incidente: "SHADOW_AI",
@@ -1392,7 +1438,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token,
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA",
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget),
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsDns: {
                             incidente: "PHISHING_DNS",
@@ -1429,7 +1475,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token,
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA",
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget),
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsFinops: {
                             incidente: "FINOPS_ANOMALY",
@@ -1469,7 +1515,7 @@ function setupSimulationListeners() {
                 await fetch(`${URL_BACKEND}/api/hijack/analisis`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        token_validacion: token, empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA", idEquipo: dispositivoSimuladoTarget.id,
+                        token_validacion: token, empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget), idEquipo: dispositivoSimuladoTarget.id,
                         logsIa: { incidente: "AGENT_HIJACK", detalles: payload.estado_actual.detalles_amenaza, timestamp: payload.timestamp }
                     })
                 });
@@ -1497,7 +1543,7 @@ function setupSimulationListeners() {
                 await fetch(`${URL_BACKEND}/api/mfafatigue/analisis`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        token_validacion: token, empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA", idEquipo: dispositivoSimuladoTarget.id,
+                        token_validacion: token, empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget), idEquipo: dispositivoSimuladoTarget.id,
                         logsIdentidad: { incidente: "MFA_FATIGUE", detalles: payload.estado_actual.detalles_amenaza, timestamp: payload.timestamp }
                     })
                 });
@@ -1526,7 +1572,7 @@ function setupSimulationListeners() {
                 await fetch(`${URL_BACKEND}/api/dex/analisis`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        token_validacion: token, empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA", idEquipo: dispositivoSimuladoTarget.id,
+                        token_validacion: token, empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget), idEquipo: dispositivoSimuladoTarget.id,
                         logsFisicos: { incidente: "DEX_DEGRADATION", detalles: payload.estado_actual.detalles_amenaza, temp: 96, ssd_health: 12 }
                     })
                 });
@@ -1558,7 +1604,7 @@ function setupSimulationListeners() {
                 await fetch(`${URL_BACKEND}/api/fileless/analisis`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        token_validacion: token, empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA", idEquipo: dispositivoSimuladoTarget.id,
+                        token_validacion: token, empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget), idEquipo: dispositivoSimuladoTarget.id,
                         logsSecops: { incidente: "FILELESS_ATTACK", detalles: payload.estado_actual.detalles_amenaza, timestamp: payload.timestamp }
                     })
                 });
@@ -1602,7 +1648,7 @@ function setupSimulationListeners() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         token_validacion: token, 
-                        empresaId: dispositivoSimuladoTarget.cliente?.empresa || "DESCONOCIDA", 
+                        empresaId: obtenerEmpresaTarget(dispositivoSimuladoTarget), 
                         idEquipo: dispositivoSimuladoTarget.id,
                         logsIdentidad: { 
                             incidente: "HELPDESK_COMPROMISE", 

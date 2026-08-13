@@ -1316,15 +1316,15 @@ def api_simular_infraestructura():
         if not db: 
             return jsonify({"status": "error", "message": "Firestore desconectado."}), 503
             
-        payload = request.get_json() or {}
-        tipo_simulacion = payload.get("tipo_simulacion")
-        id_equipo = payload.get("dispositivo") or payload.get("idEquipo")
+        payload_wrapper = request.get_json() or {}
+        tipo_simulacion = payload_wrapper.get("tipo_simulacion")
+        id_equipo = payload_wrapper.get("id_equipo") or payload_wrapper.get("dispositivo") or payload_wrapper.get("idEquipo")
         
         if not id_equipo:
             return jsonify({"status": "error", "message": "Identificador de dispositivo no proporcionado."}), 400
 
         # 1. Obtener empresa_id del payload
-        empresa_id = payload.get("empresa_id") or payload.get("empresaId")
+        empresa_id = payload_wrapper.get("empresa_id") or payload_wrapper.get("empresaId")
         
         # 2. Si no viene en el payload, buscar dinámicamente en Firestore el dueño del PC
         if not empresa_id:
@@ -1358,7 +1358,6 @@ def api_simular_infraestructura():
                     elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
                         tel_admin = str(u_tel)
 
-            # Resguardo: usar primer supervisor/admin disponible en la BD si no hubo coincidencia estricta
             if tel_supervisor == "DESCONOCIDO":
                 for d in usuarios_docs:
                     u_data = d.to_dict()
@@ -1377,12 +1376,63 @@ def api_simular_infraestructura():
                         tel_admin = str(u_tel)
                         break
 
-        # 4. Evaluación de anomalías y despacho
-        if tipo_simulacion == "hardware":
-            temp = payload.get("cpu_temperatura_c", 65)
-            ram = payload.get("ram_pct", 45)
-            ssd = payload.get("vida_util_pct", 98)
-            wear = payload.get("battery_wear_level_pct", 12)
+        # 4. EVALUACIÓN GENERAL COMPLETA DE SLIDERS Y CHECKBOXES ("general_telemetry")
+        if tipo_simulacion == "general_telemetry":
+            telemetria = payload_wrapper.get("telemetria", {})
+            estado = telemetria.get("estado_actual", {})
+            termico = telemetria.get("termico_fans", {})
+            almacenamiento = telemetria.get("almacenamiento_ssd", {})
+            bateria = telemetria.get("energia_bateria", {})
+            estabilidad = telemetria.get("estabilidad_sistema", {})
+            postura = telemetria.get("security_posture", {})
+            ai_rt = postura.get("ai_runtime", {})
+
+            # A. Sliders de Silicio y DEX (Hardware)
+            temp = termico.get("cpu_temperatura_c", 40)
+            ram = estado.get("ram_pct", 0)
+            ssdVida = almacenamiento.get("vida_util_pct", 100)
+            batWear = bateria.get("battery_wear_level_pct", 0)
+            panics = estabilidad.get("bsod_conteo_7d", 0)
+
+            if temp > 85:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "HIGH_TEMPERATURE", "thermal_throttle_mitigation", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif ram > 80:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "RAM_SATURATION", "ram_flush", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif ssdVida < 20:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "SSD_DEGRADATION", "defrag_trim_optimizer", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif batWear > 60:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "BATTERY_WEAR", "evaluar_roi_y_renovacion_pc", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif panics > 3:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "DEX_DEGRADATION", "zombie_app_killer", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+
+            # B. Compliance de Hardening (CIS / ISO 27001)
+            fw = postura.get("firewall_activo", True)
+            uac = postura.get("uac_status") == "ACTIVO"
+            bit = postura.get("bitlocker_status") == "PROTEGIDO"
+            av_rtp = postura.get("antivirus", {}).get("rtp_activo", True)
+
+            if not fw or not uac or not bit or not av_rtp:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "COMPLIANCE_BREACH", "enable_firewall", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+
+            # C. SecOps e IA Runtime
+            hosts_altered = postura.get("hosts_altered", False)
+            persistencias = postura.get("persistencia_anomala", 0)
+            injections = ai_rt.get("prompt_injections", 0)
+            rogue_calls = ai_rt.get("rogue_executions", 0)
+
+            if hosts_altered:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "PHISHING_DNS", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif persistencias > 0:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "FILELESS_ATTACK", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            elif injections > 0 or rogue_calls > 0:
+                solicitar_aprobacion_hitl_whatsapp(id_equipo, "AGENT_HIJACK", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+
+        # 5. Compatibilidad previa con botones individuales (hardware / compliance)
+        elif tipo_simulacion == "hardware":
+            temp = payload_wrapper.get("cpu_temperatura_c", 65)
+            ram = payload_wrapper.get("ram_pct", 45)
+            ssd = payload_wrapper.get("vida_util_pct", 98)
+            wear = payload_wrapper.get("battery_wear_level_pct", 12)
             
             if temp > 85:
                 solicitar_aprobacion_hitl_whatsapp(id_equipo, "HIGH_TEMPERATURE", "thermal_throttle_mitigation", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
@@ -1394,17 +1444,17 @@ def api_simular_infraestructura():
                 solicitar_aprobacion_hitl_whatsapp(id_equipo, "BATTERY_WEAR", "evaluar_roi_y_renovacion_pc", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
 
         elif tipo_simulacion == "compliance":
-            fw = payload.get("firewall_activo", True)
-            uac = payload.get("uac_activo", True)
-            bit = payload.get("bitlocker_protegido", True)
+            fw = payload_wrapper.get("firewall_activo", True)
+            uac = payload_wrapper.get("uac_activo", True)
+            bit = payload_wrapper.get("bitlocker_protegido", True)
             
             if not fw or not uac or not bit:
                 solicitar_aprobacion_hitl_whatsapp(id_equipo, "COMPLIANCE_BREACH", "enable_firewall", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         
         return jsonify({"status": "success", "empresa_procesada": empresa_id, "supervisor_notificado": tel_supervisor}), 200
     except Exception as e:
+        print(f"X Error en simulador de infraestructura: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 # =========================================================================
 # 🟢 ENDPOINT REAL DE PRODUCCIÓN: REPORTE DE REMEDIACIÓN AGENTE SENTINEL
