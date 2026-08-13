@@ -2354,11 +2354,11 @@ def webhook_whatsapp():
                     if es_autorizado:
                         estado_actual = tkt_data.get("estado")
                         
-                        # 🟢 CORRECCIÓN DEFINITIVA: Si el ticket YA NO está pendiente, detener todo de inmediato
+                        # 🟢 NOTIFICACIÓN DE GESTIÓN PREVIA
                         if estado_actual != "pendiente_aprobacion_hitl":
                             enviar_texto_whatsapp(
                                 telefono_remitente, 
-                                "❌ *Sentinel SOC:* Esta alerta (o ticket) ya fue gestionada previamente por la organización. La contención se encuentra en curso o fue ejecutada correctamente."
+                                "❌ *Sentinel SOC:* Esta alerta (o ticket) ya fue gestionada previamente por el Administrador de Global365. La contención se encuentra en curso o fue ejecutada correctamente."
                             )
                             return jsonify({"status": "success", "message": "Ticket ya gestionado previamente"}), 200
 
