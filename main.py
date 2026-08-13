@@ -920,8 +920,31 @@ def esclalar_alerta_admin_hitl(tkt_id, telefono_admin):
     except Exception as e:
         print(f"X Error en hilo asíncrono de escalamiento: {str(e)}")
 
+# CONSTANTE DE AMENAZAS SUJETAS A COOLDOWN (HARDWARE / RENDIMIENTO)
+AMENAZAS_HARDWARE_COOLDOWN = [
+    "HIGH_TEMPERATURE", 
+    "RAM_SATURATION", 
+    "SSD_DEGRADATION", 
+    "BATTERY_WEAR", 
+    "DEX_DEGRADATION", 
+    "FINOPS_ANOMALY"
+]
+
 def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sugerido: str, telefono_supervisor: str, telefono_admin: str, coleccion_origen: str = COLECCION_TELEMETRIA, empresa_id: str = "GLOBAL365") -> str:
     try:
+        # 🟢 VERIFICACIÓN DE COOLDOWN ANTI-SATURACIÓN (24 HORAS PARA HARDWARE)
+        if amenaza in AMENAZAS_HARDWARE_COOLDOWN and db:
+            hace_24h = datetime.utcnow() - timedelta(hours=24)
+            tickets_recientes = db.collection("tickets_hitl")\
+                .where("id_equipo", "==", str(id_equipo).upper())\
+                .where("amenaza", "==", amenaza)\
+                .where("timestamp_creacion", ">=", hace_24h)\
+                .limit(1).stream()
+            
+            if any(tickets_recientes):
+                print(f"[AIOps COOLDOWN] Alerta de hardware '{amenaza}' para {id_equipo} omitida por ventana activa de 24h.")
+                return "COOLDOWN_ACTIVO"
+
         tkt_id = f"TKT-{int(time.time() * 1000) % 10000:04d}"
         if db:
             db.collection("tickets_hitl").document(tkt_id).set({
@@ -2205,6 +2228,90 @@ def cancelar_timers_ticket(tkt_id):
             except Exception as e:
                 print(f"! Error cancelando temporizador {llave}: {str(e)}")
 
+# =========================================================================
+# 🟢 MÓDULO DE PROSPECTIVA TÉCNICA PROFUNDA (CHAT OPS & FIRESTORE)
+# =========================================================================
+def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: str):
+    """
+    Genera un informe técnico pericial de prospectiva a 60 días para una empresa.
+    Empaqueta: 1. Situación Actual, 2. Consecuencias/Riesgos, 3. Acciones Preventivas.
+    Archiva el reporte completo en Firestore y envía un resumen corto por WhatsApp.
+    """
+    try:
+        if not db: 
+            return
+            
+        empresa_clean = str(empresa_id).upper().strip()
+        limite_historial = datetime.utcnow() - timedelta(days=60)
+        
+        documentos = db.collection(COLECCION_TELEMETRIA)\
+            .where("cliente.empresa", "==", empresa_clean)\
+            .where("timestamp", ">=", limite_historial).stream()
+        
+        historial_equipos = {}
+        for doc_item in documentos:
+            d = doc_item.to_dict()
+            usr = d.get("cliente", {}).get("usuario", "Desconocido")
+            if usr not in historial_equipos:
+                historial_equipos[usr] = []
+            historial_equipos[usr].append(d)
+
+        if not historial_equipos:
+            enviar_texto_whatsapp(
+                telefono_solicitante, 
+                f"ℹ️ *Sentinel AI:* No se encontró telemetría histórica suficiente en los últimos 60 días para la empresa *{empresa_clean}*."
+            )
+            return
+
+        prompt_prospectiva = f"""
+        Actúas como Sentinel AI, analista SOC Tier 3 y consultor senior de infraestructura TI de Global365.
+        Evalúa minuciosamente la telemetría acumulada de los últimos 60 días para la organización '{empresa_clean}':
+        {json.dumps(historial_equipos, default=str)}
+
+        Genera un informe técnico pericial estructurado ESTRICTAMENTE en las siguientes 3 fases:
+        1. SITUACIÓN ACTUAL: Analiza tendencias de temperatura, desgaste de SSD/HDD, colas de CPU, carga de RAM, parches y brechas de ciberseguridad por equipo.
+        2. CONSECUENCIAS Y RIESGOS PROYECTADOS: Estima las fallas catastróficas de hardware, throttling térmico, colapso de componentes o vulnerabilidades de seguridad que ocurrirán en las próximas semanas si no se interviene.
+        3. ACCIONES PREVENTIVAS Y CORRECTIVAS: Detalla los mantenimientos físicos, upgrades de silicio, reclamaciones de licencias o ajustes de bastionado requeridos.
+
+        Usa un lenguaje pericial, técnico y riguroso.
+        """
+
+        api_key_studio = os.environ.get("GEMINI_API_KEY")
+        client = genai.Client(api_key=api_key_studio)
+        
+        response = client.models.generate_content(
+            model=MODELO_GEMINI,
+            contents=prompt_prospectiva,
+            config=types.GenerateContentConfig(temperature=0.2)
+        )
+        
+        informe_completo_texto = response.text.strip()
+
+        # 1. Archivar reporte completo en Firestore
+        doc_ref = db.collection("reportes_prospectiva_profunda").add({
+            "empresa_id": empresa_clean,
+            "solicitante_telefono": telefono_solicitante,
+            "informe_tecnico_completo": informe_completo_texto,
+            "equipos_evaluados": list(historial_equipos.keys()),
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+        
+        reporte_id = doc_ref[1].id if isinstance(doc_ref, tuple) else doc_ref.id
+
+        # 2. Enviar resumen corto vía WhatsApp
+        resumen_wa = (
+            f"📊 *SENTINEL SOC: PROSPECTIVA TÉCNICA* 📊\n"
+            f"Organización: *{empresa_clean}* (Ref: `{reporte_id[-6:].upper()}`)\n\n"
+            f"Se completó el análisis pericial a 60 días sobre {len(historial_equipos)} equipo(s).\n\n"
+            f"El informe completo (*Situación, Consecuencias y Acciones*) ha sido archivado en Firebase para consulta en Panel.\n\n"
+            f"💡 *Recomendación:* Revisa las alertas térmicas y de almacenamiento preventivo registradas."
+        )
+        
+        enviar_texto_whatsapp(telefono_solicitante, resumen_wa)
+
+    except Exception as e:
+        print(f"X Error generando prospectiva profunda: {str(e)}")
+        enviar_texto_whatsapp(telefono_solicitante, "❌ *Sentinel AI:* Ocurrió un error al procesar el análisis de prospectiva profunda.")
 
 # =========================================================================
 # WEBHOOK INTERACTIVO WHATSAPP (VALIDACIÓN ANTI-SPOOFING METAMÁTICA)
@@ -2460,6 +2567,17 @@ def webhook_whatsapp():
                 if u_equipo and u_equipo not in datos_flota_dict:
                     datos_flota_dict[u_equipo] = reg_doc
                     
+            # 🟢 INTERCEPTOR CHATOPS: PROSPECTIVA TÉCNICA BAJO DEMANDA
+            if "prospectiva" in mensaje_recibido.lower():
+                empresa_target = empresa_id_limpio or "GLOBAL365"
+                match_emp = re.search(r"prospectiva\s+(?:de\s+)?([A-Za-z0-9_]+)", mensaje_recibido, re.IGNORECASE)
+                if match_emp:
+                    empresa_target = match_emp.group(1).upper()
+                    
+                enviar_texto_whatsapp(telefono_remitente, f"🔍 *Sentinel SOC:* Iniciando análisis de prospectiva técnica a 60 días para *{empresa_target}*...")
+                threading.Thread(target=generar_reporte_prospectiva_profunda, args=[empresa_target, telefono_remitente]).start()
+                return jsonify({"status": "success"}), 200
+
             respuesta_texto = procesar_respuesta_con_ia(mensaje_recibido, datos_flota_dict, telefono_remitente)
             enviar_texto_whatsapp(telefono_remitente, respuesta_texto)
             db.collection("usuarios").document(usuario_doc_id).update({"consultas_realizadas": firestore.Increment(1)})
