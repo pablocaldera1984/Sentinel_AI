@@ -2191,17 +2191,18 @@ def processar_prospectiva_global():
 # FUNCIÓN AUXILIAR DE CANCELACIÓN DE TEMPORIZADORES (HITL)
 # =========================================================================
 def cancelar_timers_ticket(tkt_id):
-    """Cancela los temporizadores de escalamiento y simulación si el ticket es gestionado antes del timeout."""
+    """Cancela TODOS los temporizadores asíncronos vinculados a un ticket."""
     if not tkt_id:
         return
-    for key in [f"esc_{tkt_id}", f"cie_{tkt_id}"]:
-        if key in TIMERS_ACTIVOS:
+    for prefijo in ["esc_", "cie_", "cie_res_"]:
+        llave = f"{prefijo}{tkt_id}"
+        if llave in TIMERS_ACTIVOS:
             try:
-                TIMERS_ACTIVOS[key].cancel()
-                del TIMERS_ACTIVOS[key]
-                print(f"[AIOps HITL] Temporizador {key} cancelado exitosamente.")
+                TIMERS_ACTIVOS[llave].cancel()
+                del TIMERS_ACTIVOS[llave]
+                print(f"[AIOps HITL] Temporizador {llave} cancelado exitosamente.")
             except Exception as e:
-                print(f"! Error cancelando temporizador {key}: {str(e)}")
+                print(f"! Error cancelando temporizador {llave}: {str(e)}")
 
 
 # =========================================================================
