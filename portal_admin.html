@@ -1669,39 +1669,6 @@ document.getElementById("btn-dispatch-simulation")?.addEventListener('click', as
         }
     });
 
-    document.getElementById("btn-dispatch-simulation")?.addEventListener('click', async () => {
-        if (!dispositivoSimuladoTarget) return alert("Selecciona un equipo primero.");
-        try {
-            const ref = doc(db, dispositivoSimuladoTarget.fuente, dispositivoSimuladoTarget.id);
-            const scoreCalculado = document.getElementById("sim-firewall").checked && document.getElementById("sim-uac").checked ? 100 : 40;
-            
-            const payload = { 
-                timestamp: new Date().toISOString(), 
-                estado_actual: { 
-                    cpu_pct: 25, // Forzado por compatibilidad global
-                    ram_pct: parseInt(document.getElementById("sim-ram").value) 
-                }, 
-                termico_fans: {
-                    cpu_temperatura_c: parseInt(document.getElementById("sim-temp").value)
-                },
-                almacenamiento_ssd: {
-                    vida_util_pct: parseInt(document.getElementById("sim-ssd").value),
-                    smart_status: parseInt(document.getElementById("sim-ssd").value) < 20 ? "FAILING" : "OK"
-                },
-                security_posture: { 
-                    firewall_activo: document.getElementById("sim-firewall").checked, 
-                    uac_status: document.getElementById("sim-uac").checked ? "ACTIVO" : "DESHABILITADO", 
-                    bitlocker_status: document.getElementById("sim-bitlocker").checked ? "PROTEGIDO" : "EXPUESTO",
-                    score_ponderado: scoreCalculado 
-                } 
-            };
-            await updateDoc(ref, payload); 
-            alert("Telemetría general despachada con éxito.");
-        } catch(err) { 
-            alert("Error al despachar simulación."); 
-        }
-    });
-
     // Botones adicionales homologados horizontales
     document.getElementById("btn-simular-caida-internet")?.addEventListener('click', () => {
         alert("Simulación de corte WAN propagada al tunnel local.");

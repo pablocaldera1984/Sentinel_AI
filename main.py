@@ -1771,10 +1771,10 @@ def api_remediar_dispositivo():
 
 
 # =========================================================================
-# RUTA API FRONTEND (CON GOVERNANCE & DECISION TRACING EXTENDIDO)
+# RUTA API FRONTEND (CON GOVERNANCE, PERSISTENCIA SEGURA Y DECISION TRACING)
 # =========================================================================
 @app.route('/api/diagnostico', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("120 per minute")  # Soportar múltiples terminales bajo una misma IP/NAT corporativa
 def api_diagnostico_pc():
     try:
         pc_telemetria = request.get_json()
@@ -1783,8 +1783,25 @@ def api_diagnostico_pc():
                 "status": "error",
                 "diagnostico": "Sentinel AI no recibió un paquete de telemetría válido corporativo.",
                 "mini_herramienta": "ok"
-            }), 200
-            
+            }), 400
+
+        # 1. Extraer identificadores universales normalizados
+        uid_equipo = str(pc_telemetria.get('id') or pc_telemetria.get('uid') or pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')).upper()
+        empresa_id = str(pc_telemetria.get('cliente', {}).get('empresa', 'DESCONOCIDA')).upper()
+
+        # 2. Persistencia Segura en Firestore (auditoria_global / ficha viva de flota)
+        # ⚠️ IMPORTANTE: Usamos merge=True para NO borrar la cola de 'comandos_pendientes' activos
+        if db and uid_equipo != "DESCONOCIDO":
+            try:
+                datos_guardar = dict(pc_telemetria)
+                datos_guardar["timestamp"] = firestore.SERVER_TIMESTAMP
+                
+                db.collection("auditoria_global").document(uid_equipo).set(datos_guardar, merge=True)
+                print(f"[AIOps] Telemetría unificada persistida con merge=True para: {uid_equipo}")
+            except Exception as err_db:
+                print(f"[!] Error no bloqueante al persistir telemetría de {uid_equipo}: {str(err_db)}")
+
+        # 3. Inferencia Cognitiva Quirúrgica (Gemini 3.5 Flash-Lite OCSF)
         objeto_ai = generar_insight_quirurgico(pc_telemetria)
         diagnostico_final = objeto_ai.get("diagnostico_texto", "")
         herramienta_final = objeto_ai.get("mini_herramienta_sugerida", "ok")
@@ -1793,13 +1810,11 @@ def api_diagnostico_pc():
         razonamiento_ocsf = objeto_ai.get("razonamiento_interno", "Procesamiento agéntico estándar ejecutado.")
         mitre_mapeo = objeto_ai.get("tecnica_mitre", "ASI01 - Agentic Standard Monitoring")
         
+        # 4. Trazabilidad de Decisiones y FinOps (Mapeo de costos de API en USD)
         if db:
             try:
-                uid_equipo = pc_telemetria.get('id') or pc_telemetria.get('uid') or pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')
-                empresa_id = pc_telemetria.get('cliente', {}).get('empresa', 'DESCONOCIDA').upper()
-                
                 db.collection(COLECCION_DECISIONES).add({
-                    "uid": str(uid_equipo).upper(),
+                    "uid": uid_equipo,
                     "empresa_id": empresa_id,
                     "timestamp": firestore.SERVER_TIMESTAMP,
                     "diagnostico_texto": diagnostico_final,
@@ -1811,6 +1826,7 @@ def api_diagnostico_pc():
                         "usuario_asociado": pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')
                     }
                 })
+                
                 if tracking_tokens.get("costo_usd", 0) > 0:
                     db.collection(COLECCION_CONFIG_EMPRESAS).document(empresa_id).set({
                         "costo_inferencia_ia": firestore.Increment(tracking_tokens["costo_usd"]),
@@ -1819,11 +1835,13 @@ def api_diagnostico_pc():
             except Exception as err_trace:
                 print(f"! Fallo no bloqueante en Decision Tracing o Finops IA: {str(err_trace)}")
             
+        # 5. Respuesta síncrona unificada hacia el actuador del agente
         return jsonify({
             "status": "success",
             "diagnostico": diagnostico_final,
             "mini_herramienta": herramienta_final
         }), 200
+
     except Exception as e:
         print(f"X Caída catastrófica controlada en endpoint /api/diagnostico: {str(e)}")
         return jsonify({
