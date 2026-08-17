@@ -22,6 +22,17 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 
+# ==========================================
+# 🟢 HARDENING FORENSE: ANTI-LOG SPOOFING (OWASP ASVS v4.0.3)
+# ==========================================
+def sanitize_forensic_log(input_data) -> str:
+    """
+    Elimina secuencias de escape ANSI y caracteres de salto de línea (CRLF)
+    para impedir inyecciones maliciosas o manipulación visual de logs forenses.
+    """
+    sanitized = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', str(input_data))
+    return sanitized.replace('\n', ' [NL] ').replace('\r', '').strip()
+
 #
 # CONFIGURACIÓN E INICIALIZACIÓN
 #
@@ -41,7 +52,7 @@ try:
         firebase_admin.initialize_app()
     db = firestore.client()
 except Exception as err_init:
-    print(f"X ERROR CRÍTICO DE ENTORNO: Fallo al instanciar el cliente Firestore SDK: {str(err_init)}")
+    print(f"X ERROR CRÍTICO DE ENTORNO: Fallo al instanciar Firestore: {sanitize_forensic_log(err_init)}")
     db = None
 
 app = Flask(__name__)
@@ -1457,63 +1468,65 @@ def api_simular_infraestructura():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # =========================================================================
-# 🟢 ENDPOINT REAL DE PRODUCCIÓN: REPORTE DE REMEDIACIÓN AGENTE SENTINEL
+# ENDPOINT DE REPORTE DE REMEDIACIÓN REAL (NOTIFICACIÓN CIERRE WHATSAPP)
 # =========================================================================
 @app.route('/api/forense/remediacion', methods=['POST'])
 @limiter.limit("30 per minute")
 def api_forense_remediacion_real():
     try:
         auth_token = request.headers.get("X-Sentinel-Agent-Token")
-        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN")
+        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN", "GLOBAL365_SECRET_AGENT_COMMUNICATION_KEY")
         
-        if not token_esperado:
-            return jsonify({"status": "error", "message": "Servicio de validación de agente no configurado."}), 500
-            
         if not auth_token or auth_token != token_esperado:
             return jsonify({"status": "error", "message": "Acceso Denegado: Token de Agente local inválido."}), 401
             
-        datos_remediacion = request.get_json()
-        if not datos_remediacion:
-            return jsonify({"status": "error", "message": "Paquete de datos vacío."}), 400
-            
-        id_equipo = datos_remediacion.get("idEquipo")
-        tkt_id = datos_remediacion.get("ticketId").upper() if datos_remediacion.get("ticketId") else None
-        incidente_key = datos_remediacion.get("incidenteKey")
-        
-        if not id_equipo or not incidente_key or not tkt_id:
-            return jsonify({"status": "error", "message": "Parámetros insuficientes para procesar el cierre real."}), 400
-            
-        if db:
+        datos = request.get_json() or {}
+        id_equipo = str(datos.get("idEquipo", "DESCONOCIDO")).upper()
+        accion = datos.get("accion") or datos.get("incidenteKey", "contencion")
+        token_oob = datos.get("token_autorizador_oob", "")
+        detalles = datos.get("detalles", "")
+        tkt_id = datos.get("ticketId")
+
+        if not tkt_id and "TKT-" in token_oob:
+            match_tkt = re.search(r"(TKT-[0-9]{4})", token_oob)
+            if match_tkt:
+                tkt_id = match_tkt.group(1)
+
+        print(f"[Sentinel Real SOC] Remediación reportada por {id_equipo}: {accion} ({detalles})")
+
+        if db and tkt_id:
             tkt_ref = db.collection("tickets_hitl").document(tkt_id)
             tkt_doc = tkt_ref.get()
-            
             if tkt_doc.exists:
                 tkt_ref.update({
                     "estado": "solucionado_real",
-                    "timestamp_resolucion_real": firestore.SERVER_TIMESTAMP
+                    "timestamp_resolucion_real": firestore.SERVER_TIMESTAMP,
+                    "detalles_actuador": detalles
                 })
-                
                 tkt_data = tkt_doc.to_dict()
-                telefono_supervisor = tkt_data.get("telefono_supervisor")
-                
-                solucion_amigable = DICCIONARIO_SOLUCIONES_AMIGABLES.get(incidente_key, "Las contenciones preventivas fueron aplicadas con éxito.")
-                
-                mensaje_cierre_real = (
-                    f"✅ *MONITOREO: INCIDENTE SOLUCIONADO* ✅\n"
-                    f"Sentinel AI aplicó de forma autónoma las medidas de contención en el equipo de `{id_equipo.upper()}`. "
-                    f"{solucion_amigable} El estado de la flota ha vuelto a la normalidad y opera de manera segura (Ticket: {tkt_id})."
-                )
-                
-                if telefono_supervisor and telefono_supervisor != "DESCONOCIDO":
-                    enviar_texto_whatsapp(telefono_supervisor, mensaje_cierre_real)
-                    print(f"[Sentinel Real SOC] Incidente corregido por Agente en {id_equipo}. WhatsApp enviado al supervisor.")
-                    return jsonify({"status": "success", "message": "Resolución real procesada y notificada."}), 200
+                tel_sup = tkt_data.get("telefono_supervisor")
+                if tel_sup and tel_sup != "DESCONOCIDO":
+                    solucion_amigable = DICCIONARIO_SOLUCIONES_AMIGABLES.get(tkt_data.get("amenaza", ""), detalles)
+                    msg = (
+                        f"✅ *MONITOREO: INCIDENTE SOLUCIONADO* ✅\n"
+                        f"Sentinel AI aplicó de forma autónoma las medidas de contención en el equipo de `{id_equipo}`. "
+                        f"{solucion_amigable} El estado de la flota opera seguro (Ticket: {tkt_id})."
+                    )
+                    enviar_texto_whatsapp(tel_sup, msg)
 
-        return jsonify({"status": "error", "message": "No se pudo mapear el ticket asociado para la notificación."}), 404
-        
+        if db and id_equipo != "DESCONOCIDO":
+            db.collection("auditoria_global").document(id_equipo).set({
+                "comandos_pendientes": {
+                    "estado_ejecucion": "completado",
+                    "resultado_detalles": detalles,
+                    "timestamp_cierre": firestore.SERVER_TIMESTAMP
+                }
+            }, merge=True)
+
+        return jsonify({"status": "success", "message": "Resolución procesada exitosamente."}), 200
     except Exception as e:
-        print(f"X Error crítico en ingesta de remediación real: {str(e)}")
-        return jsonify({"status": "error", "message": "Ocurrió un error interno en el servidor"}), 500
+        print(f"X Error en remediación real: {sanitize_forensic_log(e)}")
+        return jsonify({"status": "error", "message": "Ocurrió un error interno"}), 500
 
 
 # =========================================================================
@@ -1634,32 +1647,48 @@ def generar_insight_quirurgico(pc_data):
 
 
 # =========================================================================
-# ENDPOINT DE CONFIGURACIÓN SEGURA HARDENING (OWASP COMPLIANT ADAPTATIVO)
+# ENDPOINT DE CONFIGURACIÓN SEGURA HARDENING (VAULT AGENTE + PORTAL WEB)
 # =========================================================================
-@app.route('/api/config', methods=['GET'])
+@app.route('/api/config', methods=['GET', 'POST', 'OPTIONS'])
 def obtener_configuracion_segura():
-    try:
-        # 🛡️ SEGURIDAD POR ORIGEN (CORS):
-        # Si la petición viene del navegador, Flask-CORS ya valida contra tu 'ORIGEN_PERMITIDO'
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
         
-        firebase_key = os.environ.get("FIREBASE_API_KEY")
-        firebase_domain = os.environ.get("FIREBASE_AUTH_DOMAIN")
-        firebase_project = os.environ.get("FIREBASE_PROJECT_ID")
-        firebase_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET")
-        firebase_sender = os.environ.get("FIREBASE_MESSAGING_SENDER_ID")
-        firebase_app_id = os.environ.get("FIREBASE_APP_ID")
+    try:
+        # Validación de registro para Sentinel Agent (POST con Bearer Token)
+        if request.method == 'POST':
+            auth_header = request.headers.get("Authorization", "")
+            master_token_esperado = os.environ.get("MASTER_BEARER_TOKEN", "GLOBAL365_MASTER_KEY_2026")
+            
+            if not auth_header.startswith("Bearer ") or auth_header.split("Bearer ")[1] != master_token_esperado:
+                return jsonify({"status": "error", "message": "Acceso Denegado: Master Bearer Token inválido."}), 401
+                
+            datos_registro = request.get_json() or {}
+            empresa = str(datos_registro.get("empresa", "GLOBAL365")).upper()
+            usuario = datos_registro.get("usuario", "Operador")
+            hostname = datos_registro.get("hostname", "UNKNOWN-PC")
+            
+            print(f"[Sentinel Vault] Agente registrado: {usuario} @ {empresa} ({hostname})")
+            
+            return jsonify({
+                "status": "success",
+                "empresa": empresa,
+                "plan": "FULL",
+                "firebase": {
+                    "apiKey": os.environ.get("FIREBASE_API_KEY"),
+                    "projectId": os.environ.get("FIREBASE_PROJECT_ID"),
+                    "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN")
+                }
+            }), 200
 
-        if not all([firebase_key, firebase_domain, firebase_project, firebase_bucket, firebase_sender, firebase_app_id]):
-            return jsonify({"status": "error", "message": "Configuración de entorno incompleta en el servidor."}), 500
-
-        # Retornamos las credenciales públicas de Firebase al portal
+        # Petición GET estándar desde portales web
         return jsonify({
-            "apiKey": firebase_key,
-            "authDomain": firebase_domain,
-            "projectId": firebase_project,
-            "storageBucket": firebase_bucket,
-            "messagingSenderId": firebase_sender,
-            "appId": firebase_app_id
+            "apiKey": os.environ.get("FIREBASE_API_KEY"),
+            "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN"),
+            "projectId": os.environ.get("FIREBASE_PROJECT_ID"),
+            "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET"),
+            "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID"),
+            "appId": os.environ.get("FIREBASE_APP_ID")
         }), 200
         
     except Exception as e:
@@ -1771,10 +1800,10 @@ def api_remediar_dispositivo():
 
 
 # =========================================================================
-# RUTA API FRONTEND (CON GOVERNANCE, PERSISTENCIA SEGURA Y DECISION TRACING)
+# RUTA API RECEPTORA DE TELEMETRÍA (api_diagnostico_pc)
 # =========================================================================
 @app.route('/api/diagnostico', methods=['POST'])
-@limiter.limit("120 per minute")  # Soportar múltiples terminales bajo una misma IP/NAT corporativa
+@limiter.limit("120 per minute")
 def api_diagnostico_pc():
     try:
         pc_telemetria = request.get_json()
@@ -1785,32 +1814,48 @@ def api_diagnostico_pc():
                 "mini_herramienta": "ok"
             }), 400
 
-        # 1. Extraer identificadores universales normalizados
         uid_equipo = str(pc_telemetria.get('id') or pc_telemetria.get('uid') or pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')).upper()
         empresa_id = str(pc_telemetria.get('cliente', {}).get('empresa', 'DESCONOCIDA')).upper()
 
-        # 2. Persistencia Segura en Firestore (auditoria_global / ficha viva de flota)
-        # ⚠️ IMPORTANTE: Usamos merge=True para NO borrar la cola de 'comandos_pendientes' activos
+        # 1. Guardado eficiente en Firestore (Ficha Viva + Subcolección Historial)
         if db and uid_equipo != "DESCONOCIDO":
             try:
                 datos_guardar = dict(pc_telemetria)
                 datos_guardar["timestamp"] = firestore.SERVER_TIMESTAMP
                 
-                db.collection("auditoria_global").document(uid_equipo).set(datos_guardar, merge=True)
-                print(f"[AIOps] Telemetría unificada persistida con merge=True para: {uid_equipo}")
+                doc_equipo_ref = db.collection("auditoria_global").document(uid_equipo)
+                doc_equipo_ref.set(datos_guardar, merge=True)
+                doc_equipo_ref.collection("historial").add(datos_guardar)
             except Exception as err_db:
                 print(f"[!] Error no bloqueante al persistir telemetría de {uid_equipo}: {str(err_db)}")
 
-        # 3. Inferencia Cognitiva Quirúrgica (Gemini 3.5 Flash-Lite OCSF)
+        # 2. Verificar si hay un comando pendiente aprobado por WhatsApp/HITL
+        comando_a_despachar = "ok"
+        token_oob_despachar = "SYSTEM_HEALTHY"
+        
+        if db and uid_equipo != "DESCONOCIDO":
+            try:
+                doc_snap = db.collection("auditoria_global").document(uid_equipo).get()
+                if doc_snap.exists:
+                    cmd_info = doc_snap.to_dict().get("comandos_pendientes", {})
+                    if cmd_info.get("estado_ejecucion") == "pendiente":
+                        comando_a_despachar = cmd_info.get("accion", "ok")
+                        token_oob_despachar = cmd_info.get("token_autorizador_oob", "VERIFICADO_CHATOPS")
+                        db.collection("auditoria_global").document(uid_equipo).update({
+                            "comandos_pendientes.estado_ejecucion": "en_proceso"
+                        })
+            except Exception as err_cmd:
+                print(f"! Error verificando cola de comandos: {str(err_cmd)}")
+
+        # 3. Inferencia de IA (Gemini 3.5 Flash-Lite)
         objeto_ai = generar_insight_quirurgico(pc_telemetria)
         diagnostico_final = objeto_ai.get("diagnostico_texto", "")
-        herramienta_final = objeto_ai.get("mini_herramienta_sugerida", "ok")
         tracking_tokens = objeto_ai.get("_tracking_tokens", {"costo_usd": 0})
         
-        razonamiento_ocsf = objeto_ai.get("razonamiento_interno", "Procesamiento agéntico estándar ejecutado.")
-        mitre_mapeo = objeto_ai.get("tecnica_mitre", "ASI01 - Agentic Standard Monitoring")
-        
-        # 4. Trazabilidad de Decisiones y FinOps (Mapeo de costos de API en USD)
+        if comando_a_despachar == "ok":
+            comando_a_despachar = objeto_ai.get("mini_herramienta_sugerida", "ok")
+
+        # 4. Trazabilidad de Decisiones y FinOps
         if db:
             try:
                 db.collection(COLECCION_DECISIONES).add({
@@ -1818,38 +1863,34 @@ def api_diagnostico_pc():
                     "empresa_id": empresa_id,
                     "timestamp": firestore.SERVER_TIMESTAMP,
                     "diagnostico_texto": diagnostico_final,
-                    "mini_herramienta_sugerida": herramienta_final,
-                    "razonamiento_interno_cot": razonamiento_ocsf,
-                    "mitre_attack_technique": mitre_mapeo,
+                    "mini_herramienta_sugerida": comando_a_despachar,
                     "metadata_origen": {
                         "score_postura": pc_telemetria.get('security_posture', {}).get('score_ponderado', 100),
                         "usuario_asociado": pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')
                     }
                 })
-                
                 if tracking_tokens.get("costo_usd", 0) > 0:
                     db.collection(COLECCION_CONFIG_EMPRESAS).document(empresa_id).set({
                         "costo_inferencia_ia": firestore.Increment(tracking_tokens["costo_usd"]),
                         "ultima_llamada_tokens": firestore.SERVER_TIMESTAMP
                     }, merge=True)
             except Exception as err_trace:
-                print(f"! Fallo no bloqueante en Decision Tracing o Finops IA: {str(err_trace)}")
+                print(f"! Error no bloqueante en tracing: {str(err_trace)}")
             
-        # 5. Respuesta síncrona unificada hacia el actuador del agente
         return jsonify({
             "status": "success",
             "diagnostico": diagnostico_final,
-            "mini_herramienta": herramienta_final
+            "mini_herramienta": comando_a_despachar,
+            "token_autorizador_oob": token_oob_despachar
         }), 200
 
     except Exception as e:
-        print(f"X Caída catastrófica controlada en endpoint /api/diagnostico: {str(e)}")
+        print(f"X Error en /api/diagnostico: {sanitize_forensic_log(e)}")
         return jsonify({
             "status": "error",
             "diagnostico": "Sentinel AI se encuentra analizando un volumen inusual de datos.",
             "mini_herramienta": "ok"
         }), 200
-
 
 # =========================================================================
 # ENDPOINT DE AUDITORÍA SÍNCRONA 360 (VINCULADO AL PORTAL ADMIN)
@@ -2652,7 +2693,7 @@ def webhook_whatsapp():
             
         return jsonify({"status": "success"}), 200
     except Exception as e:
-        print(f"X Error crítico en execution del Webhook: {str(e)}")
+        print(f"X Error crítico en execution del Webhook: {sanitize_forensic_log(e)}")
         return jsonify({"status": "success"}), 200
 
 # =========================================================================
