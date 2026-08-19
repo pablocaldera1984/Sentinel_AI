@@ -36,7 +36,7 @@ def sanitize_forensic_log(input_data) -> str:
 #
 # CONFIGURACIÓN E INICIALIZACIÓN
 #
-COLECCION_TELEMETRIA = "auditoria_sandbox"
+COLECCION_TELEMETRIA = "auditoria_global"
 COLECCION_DECISIONES = "auditoria_decisiones_ia"
 COLECCION_CONFIG_EMPRESAS = "config_empresas"
 
@@ -159,6 +159,7 @@ guardian_registry.registrar_herramienta("extraer_artefactos_web", "analizar_arte
 guardian_registry.registrar_herramienta("auditar_identidad_cloud", "analizar_identidad_cloud", "Audita logs de accesos SaaS para detectar fatiga MFA o viajes imposibles.")
 guardian_registry.registrar_herramienta("auditar_perimetro_easm", "analizar_superficie_externa", "Procesa syslogs perimetrales cazando exploits en hardware de borde.")
 guardian_registry.registrar_herramienta("ok", None, "Usa este comando si las métricas operan con total normalidad.")
+guardian_registry.registrar_herramienta("deep_system_tuneup","evaluar_roi_y_renovacion_pc","Ejecuta optimización electrónica TRIM en SSD, libera espacio temporal y repara conexiones de red.")
 
 # Asignación automática de variables globales para compatibilidad descendente con el resto del script
 LISTA_BLANCA_HERRAMIENTAS = guardian_registry.lista_blanca
@@ -362,7 +363,8 @@ DICCIONARIO_ACCIONES_AMIGABLES = {
     "extraer_artefactos_web": {"singular": "extraer los artefactos de navegación sospechosos", "plural": "analizar las líneas de tiempo e historiales periciales"},
     "auditar_identidad_cloud": {"singular": "auditar los accesos y registros cloud", "plural": "auditar las políticas de identidad en la nube"},
     "auditar_perimetro_easm": {"singular": "escanear la superficie expuesta a internet", "plural": "auditar el perímetro de borde de la red"},
-    "ok": {"singular": "mantener el estado de supervisión normal", "plural": "mantener la flota bajo monitoreo continuo estándar"}
+    "ok": {"singular": "mantener el estado de supervisión normal", "plural": "mantener la flota bajo monitoreo continuo estándar"},
+"deep_system_tuneup": {"singular": "ejecutar mantenimiento y optimización integral del equipo", "plural": "optimizar el almacenamiento y limpiar temporales en la flota"},
 }
 
 def obtener_accion_humana_segura(comando_raw: str, tipo_numero: str = "singular") -> str:
@@ -1802,6 +1804,10 @@ def api_remediar_dispositivo():
 # =========================================================================
 # RUTA API RECEPTORA DE TELEMETRÍA (api_diagnostico_pc)
 # =========================================================================
+# CONSTANTES DE CONTROL DE VERSIONES OVER-THE-AIR (OTA)
+VERSION_MINIMA_GLOBAL = os.environ.get("VERSION_MINIMA_GLOBAL", "1.0.0")
+URL_DESCARGA_BINARIO = os.environ.get("URL_DESCARGA_BINARIO", "https://storage.googleapis.com/tu-bucket/SentinelAgent.exe")
+
 @app.route('/api/diagnostico', methods=['POST'])
 @limiter.limit("120 per minute")
 def api_diagnostico_pc():
@@ -1814,20 +1820,37 @@ def api_diagnostico_pc():
                 "mini_herramienta": "ok"
             }), 400
 
+        # --- 0. Control de Actualizaciones Silenciosas (OTA) ---
+        version_cliente = pc_telemetria.get("version_agente", "1.0.0")
+        if version_cliente < VERSION_MINIMA_GLOBAL:
+            return jsonify({
+                "status": "success",
+                "diagnostico": "Actualización obligatoria del motor requerida.",
+                "mini_herramienta": "auto_update",
+                "url_actualizacion": URL_DESCARGA_BINARIO,
+                "token_autorizador_oob": "OTA_UPDATE_AUTHORIZED"
+            }), 200
+
         uid_equipo = str(pc_telemetria.get('id') or pc_telemetria.get('uid') or pc_telemetria.get('cliente', {}).get('usuario', 'Desconocido')).upper()
         empresa_id = str(pc_telemetria.get('cliente', {}).get('empresa', 'DESCONOCIDA')).upper()
 
-        # 1. Guardado eficiente en Firestore (Ficha Viva + Subcolección Historial)
+        # 1. Doble Persistencia Blindada (Ficha Viva + Subcolección Historial)
         if db and uid_equipo != "DESCONOCIDO":
             try:
                 datos_guardar = dict(pc_telemetria)
                 datos_guardar["timestamp"] = firestore.SERVER_TIMESTAMP
                 
                 doc_equipo_ref = db.collection("auditoria_global").document(uid_equipo)
+                
+                # A. Actualizar Ficha Viva (merge=True preserva comandos_pendientes)
                 doc_equipo_ref.set(datos_guardar, merge=True)
+                
+                # B. Snapshot Histórico Inmutable para Prospectiva a 60 días
                 doc_equipo_ref.collection("historial").add(datos_guardar)
+                
             except Exception as err_db:
-                print(f"[!] Error no bloqueante al persistir telemetría de {uid_equipo}: {str(err_db)}")
+                # Sanitización estricta OWASP ASVS 7.3.1
+                print(f"[!] Error de persistencia en Firestore ({uid_equipo}): {sanitize_forensic_log(err_db)}")
 
         # 2. Verificar si hay un comando pendiente aprobado por WhatsApp/HITL
         comando_a_despachar = "ok"
@@ -2353,17 +2376,26 @@ def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: 
         empresa_clean = str(empresa_id).upper().strip()
         limite_historial = datetime.utcnow() - timedelta(days=60)
         
-        documentos = db.collection(COLECCION_TELEMETRIA)\
-            .where("cliente.empresa", "==", empresa_clean)\
-            .where("timestamp", ">=", limite_historial).stream()
+        # 1. Consultar todos los equipos de la empresa en auditoria_global (Ficha Viva)
+        equipos_empresa = db.collection("auditoria_global")\
+            .where("cliente.empresa", "==", empresa_clean).stream()
         
         historial_equipos = {}
-        for doc_item in documentos:
-            d = doc_item.to_dict()
-            usr = d.get("cliente", {}).get("usuario", "Desconocido")
-            if usr not in historial_equipos:
-                historial_equipos[usr] = []
-            historial_equipos[usr].append(d)
+        for doc_pc in equipos_empresa:
+            pc_data = doc_pc.to_dict()
+            usr = pc_data.get("cliente", {}).get("usuario", doc_pc.id)
+            historial_equipos[usr] = [pc_data]
+            
+            # 2. Extraer los snapshots inmutables de los últimos 60 días desde la subcolección historial
+            try:
+                snaps = doc_pc.reference.collection("historial")\
+                    .where("timestamp", ">=", limite_historial)\
+                    .order_by("timestamp", direction=firestore.Query.ASCENDING).stream()
+                
+                for s in snaps:
+                    historial_equipos[usr].append(s.to_dict())
+            except Exception as err_snaps:
+                print(f"[!] Advertencia al leer historial de {usr}: {sanitize_forensic_log(err_snaps)}")
 
         if not historial_equipos:
             enviar_texto_whatsapp(
@@ -2396,7 +2428,7 @@ def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: 
         
         informe_completo_texto = response.text.strip()
 
-        # 1. Archivar reporte completo en Firestore
+        # 3. Archivar reporte completo en Firestore
         doc_ref = db.collection("reportes_prospectiva_profunda").add({
             "empresa_id": empresa_clean,
             "solicitante_telefono": telefono_solicitante,
@@ -2407,7 +2439,7 @@ def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: 
         
         reporte_id = doc_ref[1].id if isinstance(doc_ref, tuple) else doc_ref.id
 
-        # 2. Enviar resumen corto vía WhatsApp
+        # 4. Enviar resumen corto vía WhatsApp
         resumen_wa = (
             f"📊 *SENTINEL SOC: PROSPECTIVA TÉCNICA* 📊\n"
             f"Organización: *{empresa_clean}* (Ref: `{reporte_id[-6:].upper()}`)\n\n"
@@ -2419,7 +2451,7 @@ def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: 
         enviar_texto_whatsapp(telefono_solicitante, resumen_wa)
 
     except Exception as e:
-        print(f"X Error generando prospectiva profunda: {str(e)}")
+        print(f"X Error generando prospectiva profunda: {sanitize_forensic_log(e)}")
         enviar_texto_whatsapp(telefono_solicitante, "❌ *Sentinel AI:* Ocurrió un error al procesar el análisis de prospectiva profunda.")
 
 # =========================================================================
