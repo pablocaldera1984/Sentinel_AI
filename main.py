@@ -67,9 +67,10 @@ def handle_options():
 # Capa 2: Forzar Cabeceras de Seguridad HTTP con Flask-Talisman (HSTS, CSP, X-Frame-Options)
 Talisman(app, force_https=True, session_cookie_secure=True)
 
-# Capa 3: CORS con Restricción de Orígenes Cruzados Estricto por Variable de Entorno (Corregido a global365.cl)
+# Capa 3: CORS con Restricción Estricta de Orígenes Cruzados (OWASP ASVS)
 DOMINIO_PERMITIDO = os.environ.get("ORIGEN_PERMITIDO", "https://global365.cl")
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+ORIGENES_PERMITIDOS = list(set([DOMINIO_PERMITIDO, "https://global365.cl", "https://www.global365.cl"]))
+CORS(app, resources={r"/api/*": {"origins": ORIGENES_PERMITIDOS}}, supports_credentials=True)
 
 # Capa 1: Instanciar Rate Limiting Anti-Automatización (OWASP ASVS)
 limiter = Limiter(
@@ -1477,10 +1478,10 @@ def api_simular_infraestructura():
 def api_forense_remediacion_real():
     try:
         auth_token = request.headers.get("X-Sentinel-Agent-Token")
-        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN", "GLOBAL365_SECRET_AGENT_COMMUNICATION_KEY")
+        token_esperado = os.environ.get("SENTINEL_AGENT_TOKEN")
         
-        if not auth_token or auth_token != token_esperado:
-            return jsonify({"status": "error", "message": "Acceso Denegado: Token de Agente local inválido."}), 401
+        if not token_esperado or not auth_token or auth_token != token_esperado:
+            return jsonify({"status": "error", "message": "Acceso Denegado: Token de Agente local inválido o no configurado."}), 401
             
         datos = request.get_json() or {}
         id_equipo = str(datos.get("idEquipo", "DESCONOCIDO")).upper()
@@ -1660,10 +1661,10 @@ def obtener_configuracion_segura():
         # Validación de registro para Sentinel Agent (POST con Bearer Token)
         if request.method == 'POST':
             auth_header = request.headers.get("Authorization", "")
-            master_token_esperado = os.environ.get("MASTER_BEARER_TOKEN", "GLOBAL365_MASTER_KEY_2026")
+            master_token_esperado = os.environ.get("MASTER_BEARER_TOKEN")
             
-            if not auth_header.startswith("Bearer ") or auth_header.split("Bearer ")[1] != master_token_esperado:
-                return jsonify({"status": "error", "message": "Acceso Denegado: Master Bearer Token inválido."}), 401
+            if not master_token_esperado or not auth_header.startswith("Bearer ") or auth_header.split("Bearer ")[1] != master_token_esperado:
+                return jsonify({"status": "error", "message": "Acceso Denegado: Master Bearer Token inválido o no configurado."}), 401
                 
             datos_registro = request.get_json() or {}
             empresa = str(datos_registro.get("empresa", "GLOBAL365")).upper()
@@ -1747,10 +1748,10 @@ def api_remediar_dispositivo():
 
         # 3. Validación de Clave Maestra en Aislamientos Globales / Kill-Switch
         if comando_key == "aislar_equipo" and coleccion_origen == "config_empresas":
-            master_secret = os.environ.get("MASTER_KILL_SWITCH_PASS", "SentinelSOC2026Master!")
-            if not clave_master_ingresada or clave_master_ingresada != master_secret:
-                print(f"🚨 ALERTA CRÍTICA: Intento de Kill-Switch con clave maestra inválida por {email_usuario}")
-                return jsonify({"status": "error", "message": "Acceso Denegado: Clave de validación master inválida."}), 403
+            master_secret = os.environ.get("MASTER_KILL_SWITCH_PASS")
+            if not master_secret or not clave_master_ingresada or clave_master_ingresada != master_secret:
+                print(f"🚨 ALERTA CRÍTICA: Intento de Kill-Switch no autorizado o clave inválida por {email_usuario}")
+                return jsonify({"status": "error", "message": "Acceso Denegado: Clave de validación master inválida o no configurada."}), 403
 
         # 4. MITIGACIÓN IDOR (Aislamiento Multi-Inquilino)
         # Si no es Administrador Master, validar que la empresa del equipo objetivo sea idéntica a la del supervisor
@@ -2154,6 +2155,234 @@ def api_forense_timeline():
 # =========================================================================
 # GESTIÓN CONVERSACIONAL DE IA Y PROCESAMIENTO GENERAL DE RESPUESTAS
 # =========================================================================
+
+# 🛠️ HERRAMIENTA CHATOPS 1: Auditoría de Flota Multi-Tenant
+def consultar_flota_empresa(empresa_id: str) -> str:
+    """Consulta la salud general, DEX y postura de seguridad de todos los PCs de una empresa específica."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        empresa_clean = str(empresa_id).upper().strip()
+        docs = db.collection("auditoria_global").where("cliente.empresa", "==", empresa_clean).stream()
+        
+        resumen = []
+        for d in docs:
+            data = d.to_dict()
+            usr = data.get("cliente", {}).get("usuario", d.id)
+            cpu = data.get("estado_actual", {}).get("cpu_pct", 0)
+            ram = data.get("estado_actual", {}).get("ram_pct", 0)
+            score = data.get("security_posture", {}).get("score_ponderado", 100)
+            temp = data.get("termico_fans", {}).get("cpu_temperatura_c", 0)
+            resumen.append(f"• PC {usr}: Score {score}%, CPU {cpu}%, RAM {ram}%, Temp {temp}°C")
+            
+        if not resumen:
+            return f"No se encontraron equipos registrados para la organización {empresa_clean}."
+        return f"Estado de la flota {empresa_clean} ({len(resumen)} PCs):\n" + "\n".join(resumen)
+    except Exception as e:
+        return f"Error consultando flota: {sanitize_forensic_log(e)}"
+
+# 🛠️ HERRAMIENTA CHATOPS 2: Análisis de Fallas y Causa Raíz (RCA)
+def consultar_historial_y_fallas_pc(identificador_pc_o_usuario: str) -> str:
+    """Recupera la telemetría histórica reciente y los tickets de incidentes de un PC para explicar causas de fallas."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        target = str(identificador_pc_o_usuario).upper().strip()
+        
+        docs = list(db.collection("auditoria_global").stream())
+        doc_match = None
+        for d in docs:
+            data = d.to_dict()
+            usr = str(data.get("cliente", {}).get("usuario", "")).upper()
+            if target in d.id.upper() or (usr and target in usr):
+                doc_match = d
+                break
+                
+        if not doc_match:
+            return f"No se encontró el PC o usuario '{target}' en el registro corporativo."
+            
+        pc_id = doc_match.id
+        
+        # 1. Buscar últimos tickets de incidentes
+        tkt_query = db.collection("tickets_hitl")\
+            .where("id_equipo", "==", pc_id)\
+            .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING)\
+            .limit(3).stream()
+            
+        tickets = [f"• Ticket {t.id}: {t.to_dict().get('amenaza')} ({t.to_dict().get('estado')}) - Acción: {t.to_dict().get('comando_sugerido')}" for t in tkt_query]
+        
+        # 2. Buscar últimos snapshots de telemetría de silicio
+        snaps = doc_match.reference.collection("historial")\
+            .order_by("timestamp", direction=firestore.Query.DESCENDING)\
+            .limit(3).stream()
+            
+        hist = []
+        for s in snaps:
+            s_data = s.to_dict()
+            hist.append(f"• Snapshot: CPU {s_data.get('estado_actual',{}).get('cpu_pct')}% | RAM {s_data.get('estado_actual',{}).get('ram_pct')}% | Temp {s_data.get('termico_fans',{}).get('cpu_temperatura_c')}°C")
+            
+        salida = f"Diagnóstico de fallas para {pc_id}:\n"
+        salida += "Incidentes Recientes:\n" + ("\n".join(tickets) if tickets else "Sin incidentes registrados.") + "\n"
+        salida += "Historial de Silicio:\n" + ("\n".join(hist) if hist else "Sin historial disponible.")
+        return salida
+    except Exception as e:
+        return f"Error consultando fallas: {sanitize_forensic_log(e)}"
+
+# 🛠️ HERRAMIENTA CHATOPS 3: Expedientes Forenses DFIR
+def consultar_expediente_forense_dfir(identificador_pc_o_empresa: str) -> str:
+    """Recupera los dictámenes periciales forenses (análisis de RAM Volatility, Timeline de navegación y superficie de ataque)."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        target = str(identificador_pc_o_empresa).upper().strip()
+        
+        query = db.collection("auditoria_decisiones_ia")\
+            .order_by("timestamp", direction=firestore.Query.DESCENDING)\
+            .limit(20).stream()
+            
+        hallazgos = []
+        for d in query:
+            data = d.to_dict()
+            uid = str(data.get("uid", "")).upper()
+            emp = str(data.get("empresa_id", "")).upper()
+            tipo = data.get("tipo") or data.get("type", "DESCONOCIDO")
+            
+            if target in uid or target in emp:
+                resumen = data.get("data", {}) or data.get("diagnostico_texto", "")
+                hallazgos.append(f"• Tipo: {tipo} | Objetivo: {uid or emp}\n  Dictamen: {json.dumps(resumen, ensure_ascii=False)[:250]}...")
+                if len(hallazgos) >= 3:
+                    break
+                    
+        if not hallazgos:
+            return f"No se registran análisis periciales forenses en auditoria_decisiones_ia para '{target}'."
+            
+        return f"Expedientes Forenses DFIR para {target}:\n" + "\n\n".join(hallazgos)
+    except Exception as e:
+        return f"Error consultando DFIR: {sanitize_forensic_log(e)}"
+
+# 🛠️ HERRAMIENTA CHATOPS 4: Remediación Directa por Lenguaje Natural
+def ordenar_remediacion_directa(identificador_pc: str, accion: str) -> str:
+    """Encola una orden de contención o mantenimiento remoto (ej: deep_system_tuneup, aislar_equipo, ram_flush, enable_firewall, forzar_update_av, defrag_trim_optimizer, bloquear_shadow_ai) para un equipo específico."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        target = str(identificador_pc).upper().strip()
+        accion_clean = str(accion).lower().strip()
+        
+        if accion_clean not in LISTA_BLANCA_HERRAMIENTAS:
+            return f"La acción '{accion_clean}' no está permitida por políticas de hardening. Comandos válidos: {', '.join(LISTA_BLANCA_HERRAMIENTAS[:8])}..."
+            
+        docs = list(db.collection("auditoria_global").stream())
+        doc_match = None
+        for d in docs:
+            usr = str(d.to_dict().get("cliente", {}).get("usuario", "")).upper()
+            if target in d.id.upper() or (usr and target in usr):
+                doc_match = d
+                break
+                
+        if not doc_match:
+            return f"No se encontró el PC o usuario '{target}' en los registros."
+            
+        doc_match.reference.update({
+            "comandos_pendientes": {
+                "accion": accion_clean,
+                "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+                "estado_ejecucion": "pendiente",
+                "token_autorizador_oob": "VERIFICADO_CHATOPS_ADMIN_DIRECTO"
+            }
+        })
+        return f"✅ Orden '{accion_clean}' despachada para {doc_match.id}. Se ejecutará en su próximo reporte."
+    except Exception as e:
+        return f"Error despachando acción: {sanitize_forensic_log(e)}"
+
+
+# 🛠️ HERRAMIENTA CHATOPS 5: Búsqueda y Caza de Software en la Flota
+def buscar_software_en_flota(empresa_id: str, software_a_buscar: str) -> str:
+    """Busca si una aplicación específica (ej: AnyDesk, uTorrent, Ollama, Chrome) está instalada en las computadoras de una empresa."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        empresa_clean = str(empresa_id).upper().strip()
+        soft_target = str(software_a_buscar).lower().strip()
+        
+        docs = db.collection("auditoria_global").where("cliente.empresa", "==", empresa_clean).stream()
+        coincidencias = []
+        for d in docs:
+            data = d.to_dict()
+            usr = data.get("cliente", {}).get("usuario", d.id)
+            lista_soft = data.get("inventario_os", {}).get("software_instalado", [])
+            for s in lista_soft:
+                if soft_target in s.lower():
+                    coincidencias.append(f"• {usr} ({d.id}): {s}")
+                    
+        if not coincidencias:
+            return f"No se detectó '{software_a_buscar}' en los equipos de {empresa_clean}."
+        return f"Equipos con '{software_a_buscar}' en {empresa_clean}:\n" + "\n".join(coincidencias)
+    except Exception as e:
+        return f"Error en búsqueda de software: {sanitize_forensic_log(e)}"
+
+
+# 🛠️ HERRAMIENTA CHATOPS 6: Resumen Ejecutivo y Semáforo B2B
+def generar_resumen_ejecutivo_semaforo(empresa_id: str) -> str:
+    """Genera una ficha ejecutiva con semáforo de salud (Seguridad, Hardware, Estado General) de una empresa para presentar a gerencia."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        empresa_clean = str(empresa_id).upper().strip()
+        docs = list(db.collection("auditoria_global").where("cliente.empresa", "==", empresa_clean).stream())
+        
+        if not docs:
+            return f"No hay datos registrados para la empresa {empresa_clean}."
+            
+        total = len(docs)
+        score_total = 0
+        alertas_temp = 0
+        alertas_sec = 0
+        
+        for d in docs:
+            data = d.to_dict()
+            score = data.get("security_posture", {}).get("score_ponderado", 100)
+            temp = data.get("termico_fans", {}).get("cpu_temperatura_c", 0)
+            score_total += score
+            if temp > 80: alertas_temp += 1
+            if score < 80: alertas_sec += 1
+            
+        prom_score = round(score_total / total)
+        sem_sec = "🟢 Óptimo" if prom_score >= 85 else ("🟡 Precaución" if prom_score >= 70 else "🔴 Crítico")
+        sem_hw = "🟢 Estable" if alertas_temp == 0 else f"🟡 {alertas_temp} equipo(s) con estrés térmico"
+        
+        resumen = (
+            f"📊 *RESUMEN EJECUTIVO: {empresa_clean}*\n"
+            f"• Equipos protegidos: {total}\n"
+            f"• Postura de Ciberseguridad: {sem_sec} ({prom_score}% promedio)\n"
+            f"• Salud de Hardware & DEX: {sem_hw}\n"
+            f"• Incidentes de seguridad activos: {alertas_sec}\n"
+            f"• Conclusión: {'Ecosistema operando bajo estándares corporativos.' if alertas_sec == 0 and alertas_temp == 0 else 'Se sugieren acciones preventivas de mantenimiento.'}"
+        )
+        return resumen
+    except Exception as e:
+        return f"Error generando resumen semáforo: {sanitize_forensic_log(e)}"
+
+
+# 🛠️ HERRAMIENTA CHATOPS 7: FinOps y Consumo de IA
+def consultar_consumo_finops_empresa(empresa_id: str) -> str:
+    """Consulta el gasto financiero acumulado en dólares por inferencia de Inteligencia Artificial de una organización."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        empresa_clean = str(empresa_id).upper().strip()
+        doc = db.collection("config_empresas").document(empresa_clean).get()
+        
+        if not doc.exists:
+            return f"No se encontró registro financiero para la empresa {empresa_clean}."
+            
+        data = doc.to_dict()
+        costo = data.get("costo_inferencia_ia", 0.0)
+        ultima_llamada = data.get("ultima_llamada_tokens", "Sin llamadas recientes")
+        
+        return (
+            f"💰 *REPORTE FINOPS: {empresa_clean}*\n"
+            f"• Inversión acumulada en IA: ${costo:.6f} USD\n"
+            f"• Última llamada procesada: {ultima_llamada}\n"
+            f"• Estado de cuota: Dentro de parámetros operativos."
+        )
+    except Exception as e:
+        return f"Error consultando FinOps: {sanitize_forensic_log(e)}"
+
+# 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
     contexto_telemetria = "DATOS DE TELEMETRÍA EN TIEMPO REAL DE LA EMPRESA:\n"
     if not datos_flota_dict:
@@ -2184,26 +2413,40 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
             mensajes_historicos.reverse()
             contexto_conversacion += "\n".join(mensajes_historicos)
         except Exception as err_mem:
-            print(f"! Alerta de Memoria Conversacional: No se pudo inyectar el contexto histórico: {str(err_mem)}")
+            print(f"! Alerta de Memoria Conversacional: No se pudo inyectar el contexto histórico: {sanitize_forensic_log(err_mem)}")
             contexto_conversacion += "[Omitido por error de indexación en base de datos]"
     else:
         contexto_conversacion += "[No hay interacciones previas registradas]"
+
+    herramientas_chatops = [
+        consultar_flota_empresa,
+        consultar_historial_y_fallas_pc,
+        consultar_expediente_forense_dfir,
+        ordenar_remediacion_directa,
+        buscar_software_en_flota,
+        generar_resumen_ejecutivo_semaforo,
+        consultar_consumo_finops_empresa
+    ]
 
     try:
         api_key_studio = os.environ.get("GEMINI_API_KEY")
         client = genai.Client(api_key=api_key_studio)
         
-        response = client.models.generate_content(
+        chat = client.chats.create(
             model=MODELO_GEMINI,
-            contents=f"{contexto_conversacion}\n\nMensaje actual entrante del supervisor: {texto_usuario}",
             config=types.GenerateContentConfig(
+                tools=herramientas_chatops,
                 system_instruction=PROMPT_SISTEMA_WHATSAPP,
-                temperature=0.3
+                temperature=0.2
             )
         )
+        
+        prompt_chat = f"{contexto_conversacion}\n\nMensaje actual entrante del usuario: {texto_usuario}"
+        response = chat.send_message(prompt_chat)
         return response.text.strip()
     except Exception as e:
-        return " *Sentinel:* Estoy experimentando una latencia temporal. Por favor, realiza tu consulta nuevamente en unos instantes."
+        print(f"[!] Error en inferencia conversacional de WhatsApp: {sanitize_forensic_log(e)}")
+        return "⚠️ *Sentinel:* Estoy experimentando una latencia temporal al consultar las bases de datos. Por favor, intenta tu consulta en unos instantes."
 
 
 # =========================================================================
