@@ -2432,22 +2432,23 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         api_key_studio = os.environ.get("GEMINI_API_KEY")
         client = genai.Client(api_key=api_key_studio)
         
-        chat = client.chats.create(
+        prompt_chat = f"{contexto_conversacion}\n\nMensaje actual entrante del usuario: {texto_usuario}"
+        
+        # Inferencia con Function Calling automático y thinking_budget=0 para evitar error de thought_signature
+        response = client.models.generate_content(
             model=MODELO_GEMINI,
+            contents=prompt_chat,
             config=types.GenerateContentConfig(
                 tools=herramientas_chatops,
                 system_instruction=PROMPT_SISTEMA_WHATSAPP,
-                temperature=0.2
+                temperature=0.2,
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
             )
         )
-        
-        prompt_chat = f"{contexto_conversacion}\n\nMensaje actual entrante del usuario: {texto_usuario}"
-        response = chat.send_message(prompt_chat)
         return response.text.strip()
     except Exception as e:
         print(f"[!] Error en inferencia conversacional de WhatsApp: {sanitize_forensic_log(e)}")
         return "⚠️ *Sentinel:* Estoy experimentando una latencia temporal al consultar las bases de datos. Por favor, intenta tu consulta en unos instantes."
-
 
 # =========================================================================
 # BARRIDOS AUTOMÁTICOS ASINCÓNICOS
