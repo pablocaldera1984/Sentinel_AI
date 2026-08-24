@@ -294,7 +294,7 @@ REGLAS DE FORMATO Y TONO CRÍTICAS (WhatsApp UX):
 - Cero jerga técnica innecesaria. Escribe de forma atenta, clara y profesional.
 - ESTRICTAMENTE PROHIBIDO usar modismos o tratos coloquiales (ej. "jefe", "patrón", "campeón", etc.) o etiquetar al usuario con roles innecesarios.
 - Prohibido usar encabezados Markdown (# o ##).
-- Usa negritas (*texto*) solo para la información más crítica del mensaje."""
+- REGLA DE FORMATO WHATSAPP: Para negritas usa ESTRICTAMENTE un solo asterisco (*texto*). PROHIBIDO usar doble asterisco (**texto**)."""
 
 # 🟢 TRADUCCIÓN DE LAS 11 AMENAZAS DEL PANEL A RIESGO DE NEGOCIO (WHATSAPP UX)
 DICCIONARIO_AMENAZAS_AMIGABLES = {
@@ -2981,7 +2981,10 @@ def enviar_texto_whatsapp(to, texto):
         print(f"❌ [AIOps ERROR] Intento de envío de texto abortado: teléfono de destino inválido o 'DESCONOCIDO' (recibido: {to})")
         return
 
-    payload = {"messaging_product": "whatsapp", "to": to_clean, "type": "text", "text": {"body": texto}}
+    # Normalización automática: Convierte Markdown estándar (**) al formato nativo de WhatsApp (*)
+    texto_formateado = re.sub(r'\*\*(.*?)\*\*', r'*\1*', str(texto))
+
+    payload = {"messaging_product": "whatsapp", "to": to_clean, "type": "text", "text": {"body": texto_formateado}}
     headers = {"Authorization": f"Bearer {TOKEN_META}", "Content-Type": "application/json"}
     response = requests.post(URL_META, json=payload, headers=headers)
     print(f" Meta API Response Status: {response.status_code}")
@@ -2992,12 +2995,11 @@ def enviar_texto_whatsapp(to, texto):
                 "timestamp": firestore.SERVER_TIMESTAMP,
                 "remitente": "SENTINEL_AI",
                 "destinatario": to_clean,
-                "mensaje": texto,
+                "mensaje": texto_formateado,  # 👈 Guardamos el texto exactamente como salió
                 "tipo_canal": "text_outbound"
             })
         except Exception as err_log:
             print(f"! Error al escribir trazabilidad de WhatsApp en DB: {str(err_log)}")
-
 
 def enviar_botones_whatsapp(to, texto, tkt_id):
     to_clean = "".join(re.findall(r"\d+", str(to)))
