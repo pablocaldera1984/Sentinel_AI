@@ -2383,6 +2383,7 @@ def consultar_consumo_finops_empresa(empresa_id: str) -> str:
         return f"Error consultando FinOps: {sanitize_forensic_log(e)}"
 
 # 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING
+# 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING ROBUSTO
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
     contexto_telemetria = "DATOS DE TELEMETRÍA EN TIEMPO REAL DE LA EMPRESA:\n"
     if not datos_flota_dict:
@@ -2418,15 +2419,16 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
     else:
         contexto_conversacion += "[No hay interacciones previas registradas]"
 
-    herramientas_chatops = [
-        consultar_flota_empresa,
-        consultar_historial_y_fallas_pc,
-        consultar_expediente_forense_dfir,
-        ordenar_remediacion_directa,
-        buscar_software_en_flota,
-        generar_resumen_ejecutivo_semaforo,
-        consultar_consumo_finops_empresa
-    ]
+    # Mapeo de herramientas para invocación determinista
+    mapa_herramientas = {
+        "consultar_flota_empresa": consultar_flota_empresa,
+        "consultar_historial_y_fallas_pc": consultar_historial_y_fallas_pc,
+        "consultar_expediente_forense_dfir": consultar_expediente_forense_dfir,
+        "ordenar_remediacion_directa": ordenar_remediacion_directa,
+        "buscar_software_en_flota": buscar_software_en_flota,
+        "generar_resumen_ejecutivo_semaforo": generar_resumen_ejecutivo_semaforo,
+        "consultar_consumo_finops_empresa": consultar_consumo_finops_empresa
+    }
 
     try:
         api_key_studio = os.environ.get("GEMINI_API_KEY")
@@ -2434,18 +2436,52 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         
         prompt_chat = f"{contexto_conversacion}\n\nMensaje actual entrante del usuario: {texto_usuario}"
         
-        # Inferencia con Function Calling automático y thinking_budget=0 para evitar error de thought_signature
+        # 1. Primera llamada: Evaluación del mensaje con herramientas disponibles
         response = client.models.generate_content(
             model=MODELO_GEMINI,
             contents=prompt_chat,
             config=types.GenerateContentConfig(
-                tools=herramientas_chatops,
+                tools=list(mapa_herramientas.values()),
                 system_instruction=PROMPT_SISTEMA_WHATSAPP,
-                temperature=0.2,
-                thinking_config=types.ThinkingConfig(thinking_budget=0)
+                temperature=0.2
             )
         )
+        
+        # 2. Si el modelo solicita ejecutar una herramienta (Function Call)
+        if response.function_calls:
+            partes_respuesta = []
+            for fc in response.function_calls:
+                func = mapa_herramientas.get(fc.name)
+                args = dict(fc.args) if fc.args else {}
+                
+                print(f"[Sentinel ChatOps] Ejecutando skill '{fc.name}' con parámetros: {args}")
+                resultado = func(**args) if func else f"Herramienta '{fc.name}' no disponible."
+                
+                partes_respuesta.append(
+                    types.Part(function_response=types.FunctionResponse(
+                        name=fc.name,
+                        response={"result": str(resultado)}
+                    ))
+                )
+            
+            # 3. Segunda llamada: Enviamos el turno previo íntegro (preservando thought_signature) + resultado
+            response_final = client.models.generate_content(
+                model=MODELO_GEMINI,
+                contents=[
+                    prompt_chat,
+                    response.candidates[0].content,
+                    types.Content(role="user", parts=partes_respuesta)
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=PROMPT_SISTEMA_WHATSAPP,
+                    temperature=0.2
+                )
+            )
+            return response_final.text.strip()
+            
+        # Si respondió directamente sin requerir herramientas
         return response.text.strip()
+
     except Exception as e:
         print(f"[!] Error en inferencia conversacional de WhatsApp: {sanitize_forensic_log(e)}")
         return "⚠️ *Sentinel:* Estoy experimentando una latencia temporal al consultar las bases de datos. Por favor, intenta tu consulta en unos instantes."
