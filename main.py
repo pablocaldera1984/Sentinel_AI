@@ -2384,6 +2384,7 @@ def consultar_consumo_finops_empresa(empresa_id: str) -> str:
 
 # 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING
 # 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING ROBUSTO
+# 🧠 MOTOR DE RESPUESTA AGÉNTICA (TWO-STEP COGNITIVE ROUTER)
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
     contexto_telemetria = "DATOS DE TELEMETRÍA EN TIEMPO REAL DE LA EMPRESA:\n"
     if not datos_flota_dict:
@@ -2419,7 +2420,6 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
     else:
         contexto_conversacion += "[No hay interacciones previas registradas]"
 
-    # Mapeo de herramientas para invocación determinista
     mapa_herramientas = {
         "consultar_flota_empresa": consultar_flota_empresa,
         "consultar_historial_y_fallas_pc": consultar_historial_y_fallas_pc,
@@ -2433,54 +2433,78 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
     try:
         api_key_studio = os.environ.get("GEMINI_API_KEY")
         client = genai.Client(api_key=api_key_studio)
-        
-        prompt_chat = f"{contexto_conversacion}\n\nMensaje actual entrante del usuario: {texto_usuario}"
-        
-        # 1. Primera llamada: Evaluación del mensaje con herramientas disponibles
-        response = client.models.generate_content(
+
+        # FASE 1: Clasificación de intención e identificación de herramientas
+        prompt_enrutador = f"""
+        Actúas como el enrutador agéntico del SOC de Sentinel AI.
+        Evalúa el mensaje del usuario y determina si requiere invocar una herramienta o responder directamente.
+
+        HERRAMIENTAS:
+        - 'consultar_flota_empresa': Parámetro 'empresa_id'. Para ver estado general de PCs de una empresa.
+        - 'consultar_historial_y_fallas_pc': Parámetro 'identificador_pc_o_usuario'. Para fallas o RCA de un PC.
+        - 'consultar_expediente_forense_dfir': Parámetro 'identificador_pc_o_empresa'. Para dictámenes forenses DFIR/RAM/MACE.
+        - 'ordenar_remediacion_directa': Parámetros 'identificador_pc', 'accion'. Para ejecutar acciones remotas.
+        - 'buscar_software_en_flota': Parámetros 'empresa_id', 'software_a_buscar'. Para cazar programas instalados.
+        - 'generar_resumen_ejecutivo_semaforo': Parámetro 'empresa_id'. Para fichas de semáforo gerencial.
+        - 'consultar_consumo_finops_empresa': Parámetro 'empresa_id'. Para costos de tokens IA.
+        - 'ninguna': Para saludos, consultas de soporte general o si no requiere consultar Firestore.
+
+        {contexto_conversacion}
+
+        Mensaje entrante del usuario: "{texto_usuario}"
+
+        Responde ESTRICTAMENTE con un JSON en este formato:
+        {{
+            "herramienta": "nombre_herramienta_o_ninguna",
+            "parametros": {{}},
+            "es_conversacion_directa": false
+        }}
+        """
+
+        decision_raw = client.models.generate_content(
             model=MODELO_GEMINI,
-            contents=prompt_chat,
+            contents=prompt_enrutador,
             config=types.GenerateContentConfig(
-                tools=list(mapa_herramientas.values()),
+                response_mime_type="application/json",
+                temperature=0.1
+            )
+        )
+        
+        datos_decision = json.loads(decision_raw.text.strip())
+        herramienta_elegida = datos_decision.get("herramienta", "ninguna")
+        parametros = datos_decision.get("parametros", {})
+
+        # FASE 2: Ejecución de la herramienta en Python (si aplica)
+        resultado_datos = ""
+        if herramienta_elegida in mapa_herramientas:
+            func = mapa_herramientas[herramienta_elegida]
+            print(f"[Sentinel ChatOps] Invocando skill '{herramienta_elegida}' con params: {parametros}")
+            try:
+                resultado_datos = func(**parametros)
+            except Exception as err_func:
+                print(f"[!] Error ejecutando skill: {str(err_func)}")
+                resultado_datos = f"Error al consultar el registro: {str(err_func)}"
+
+        # FASE 3: Sintetización final para WhatsApp
+        prompt_final = f"""
+        {contexto_conversacion}
+
+        Mensaje entrante del supervisor: "{texto_usuario}"
+        """
+        if resultado_datos:
+            prompt_final += f"\nDATOS EXTRAÍDOS DEL SISTEMA POR LA HERRAMIENTA ({herramienta_elegida}):\n{resultado_datos}\n"
+
+        prompt_final += "\nRedacta la respuesta ejecutiva final siguiendo estrictamente tus directrices de estilo (máximo 4 frases, negritas con un solo asterisco *texto*)."
+
+        response_final = client.models.generate_content(
+            model=MODELO_GEMINI,
+            contents=prompt_final,
+            config=types.GenerateContentConfig(
                 system_instruction=PROMPT_SISTEMA_WHATSAPP,
                 temperature=0.2
             )
         )
-        
-        # 2. Si el modelo solicita ejecutar una herramienta (Function Call)
-        if response.function_calls:
-            partes_respuesta = []
-            for fc in response.function_calls:
-                func = mapa_herramientas.get(fc.name)
-                args = dict(fc.args) if fc.args else {}
-                
-                print(f"[Sentinel ChatOps] Ejecutando skill '{fc.name}' con parámetros: {args}")
-                resultado = func(**args) if func else f"Herramienta '{fc.name}' no disponible."
-                
-                partes_respuesta.append(
-                    types.Part(function_response=types.FunctionResponse(
-                        name=fc.name,
-                        response={"result": str(resultado)}
-                    ))
-                )
-            
-            # 3. Segunda llamada: Enviamos el turno previo íntegro (preservando thought_signature) + resultado
-            response_final = client.models.generate_content(
-                model=MODELO_GEMINI,
-                contents=[
-                    prompt_chat,
-                    response.candidates[0].content,
-                    types.Content(role="user", parts=partes_respuesta)
-                ],
-                config=types.GenerateContentConfig(
-                    system_instruction=PROMPT_SISTEMA_WHATSAPP,
-                    temperature=0.2
-                )
-            )
-            return response_final.text.strip()
-            
-        # Si respondió directamente sin requerir herramientas
-        return response.text.strip()
+        return response_final.text.strip()
 
     except Exception as e:
         print(f"[!] Error en inferencia conversacional de WhatsApp: {sanitize_forensic_log(e)}")
