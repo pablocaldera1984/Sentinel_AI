@@ -2665,60 +2665,89 @@ def cancelar_timers_ticket(tkt_id):
                 print(f"! Error cancelando temporizador {llave}: {str(e)}")
 
 # =========================================================================
-# 🟢 MÓDULO DE PROSPECTIVA TÉCNICA PROFUNDA (CHAT OPS & FIRESTORE)
+# 🟢 MÓDULO DE PROSPECTIVA TÉCNICA PROFUNDA RESILIENTE (CHAT OPS & FIRESTORE)
 # =========================================================================
 def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: str):
     """
-    Genera un informe técnico pericial de prospectiva a 60 días para una empresa.
-    Empaqueta: 1. Situación Actual, 2. Consecuencias/Riesgos, 3. Acciones Preventivas.
-    Archiva el reporte completo en Firestore y envía un resumen corto por WhatsApp.
+    Genera un informe técnico pericial de prospectiva a 60 días para una empresa o equipo.
+    Opera con cualquier ventana de datos disponible (desde 1 registro hasta 60 días continuos).
     """
     try:
         if not db: 
+            enviar_texto_whatsapp(telefono_solicitante, "❌ *Sentinel AI:* Base de datos fuera de línea.")
             return
             
-        empresa_clean = str(empresa_id).upper().strip()
+        target_clean = str(empresa_id).upper().strip()
         limite_historial = datetime.utcnow() - timedelta(days=60)
         
-        # 1. Consultar todos los equipos de la empresa en auditoria_global (Ficha Viva)
-        equipos_empresa = db.collection("auditoria_global")\
-            .where("cliente.empresa", "==", empresa_clean).stream()
+        # 1. Búsqueda flexible de equipos (materializada con list para prevenir errores gRPC)
+        equipos_encontrados = []
         
-        historial_equipos = {}
-        for doc_pc in equipos_empresa:
-            pc_data = doc_pc.to_dict()
-            usr = pc_data.get("cliente", {}).get("usuario", doc_pc.id)
-            historial_equipos[usr] = [pc_data]
-            
-            # 2. Extraer los snapshots inmutables de los últimos 60 días desde la subcolección historial
-            try:
-                snaps = doc_pc.reference.collection("historial")\
-                    .where("timestamp", ">=", limite_historial)\
-                    .order_by("timestamp", direction=firestore.Query.ASCENDING).stream()
-                
-                for s in snaps:
-                    historial_equipos[usr].append(s.to_dict())
-            except Exception as err_snaps:
-                print(f"[!] Advertencia al leer historial de {usr}: {sanitize_forensic_log(err_snaps)}")
+        # A. Búsqueda por Empresa
+        query_empresa = db.collection("auditoria_global").where("cliente.empresa", "==", target_clean).get()
+        equipos_encontrados = list(query_empresa)
+        
+        # B. Si no encontró por empresa, buscar por ID de equipo directo o usuario
+        if not equipos_encontrados:
+            doc_directo = db.collection("auditoria_global").document(target_clean).get()
+            if doc_directo.exists:
+                equipos_encontrados = [doc_directo]
+            else:
+                query_usr = db.collection("auditoria_global").where("cliente.usuario", "==", target_clean).get()
+                equipos_encontrados = list(query_usr)
 
-        if not historial_equipos:
+        if not equipos_encontrados:
             enviar_texto_whatsapp(
                 telefono_solicitante, 
-                f"ℹ️ *Sentinel AI:* No se encontró telemetría histórica suficiente en los últimos 60 días para la empresa *{empresa_clean}*."
+                f"ℹ️ *Sentinel AI:* No se encontraron equipos registrados para '*{target_clean}*' en la telemetría corporativa."
             )
             return
 
+        # 2. Recolección segura de telemetría viva + snapshots históricos disponibles
+        historial_flota = {}
+        for doc_pc in equipos_encontrados:
+            pc_data = doc_pc.to_dict()
+            usr = pc_data.get("cliente", {}).get("usuario", doc_pc.id)
+            
+            # Limpieza y serialización segura de marcas de tiempo
+            pc_data_clean = dict(pc_data)
+            if "timestamp" in pc_data_clean:
+                pc_data_clean["timestamp"] = str(pc_data_clean["timestamp"])
+                
+            historial_flota[usr] = {
+                "ficha_actual": pc_data_clean,
+                "muestras_historicas": []
+            }
+            
+            # Lectura no bloqueante de snapshots en subcolección (máximo 15 muestras recientes)
+            try:
+                snaps = doc_pc.reference.collection("historial")\
+                    .order_by("timestamp", direction=firestore.Query.DESCENDING)\
+                    .limit(15).get()
+                    
+                for s in snaps:
+                    s_data = s.to_dict()
+                    if "timestamp" in s_data:
+                        s_data["timestamp"] = str(s_data["timestamp"])
+                    historial_flota[usr]["muestras_historicas"].append(s_data)
+            except Exception as err_snaps:
+                print(f"[!] Advertencia al leer historial de {usr}: {sanitize_forensic_log(err_snaps)}")
+
+        # 3. Prompt de inferencia con tolerancia a datos parciales
         prompt_prospectiva = f"""
         Actúas como Sentinel AI, analista SOC Tier 3 y consultor senior de infraestructura TI de Global365.
-        Evalúa minuciosamente la telemetría acumulada de los últimos 60 días para la organización '{empresa_clean}':
-        {json.dumps(historial_equipos, default=str)}
+        Evalúa la telemetría disponible para la organización o equipo '{target_clean}':
+        {json.dumps(historial_flota, default=str)}
 
-        Genera un informe técnico pericial estructurado ESTRICTAMENTE en las siguientes 3 fases:
-        1. SITUACIÓN ACTUAL: Analiza tendencias de temperatura, desgaste de SSD/HDD, colas de CPU, carga de RAM, parches y brechas de ciberseguridad por equipo.
-        2. CONSECUENCIAS Y RIESGOS PROYECTADOS: Estima las fallas catastróficas de hardware, throttling térmico, colapso de componentes o vulnerabilidades de seguridad que ocurrirán en las próximas semanas si no se interviene.
-        3. ACCIONES PREVENTIVAS Y CORRECTIVAS: Detalla los mantenimientos físicos, upgrades de silicio, reclamaciones de licencias o ajustes de bastionado requeridos.
+        REGLA DE TOLERANCIA DE DATOS:
+        - Si el equipo tiene telemetría reciente o pocos días de historial, analiza su estado de salud actual (desgaste de SSD, temperaturas de CPU, picos de RAM y postura CIS) y extrapola la proyección predictiva a 60 días basándote en la calidad y desgaste de los componentes presentes. No abortes ni exijas 60 días obligatorios.
 
-        Usa un lenguaje pericial, técnico y riguroso.
+        Genera un informe técnico estructurado ESTRICTAMENTE en las siguientes 3 secciones:
+        1. SITUACIÓN ACTUAL: Diagnóstico de salud de silicio, temperaturas, desgaste de unidades de almacenamiento y brechas de seguridad encontradas.
+        2. CONSECUENCIAS Y RIESGOS PROYECTADOS: Estimación de fallas a corto/mediano plazo, throttling térmico o degradación de productividad si no se interviene.
+        3. ACCIONES PREVENTIVAS Y CORRECTIVAS: Mantenimientos sugeridos (TRIM, optimización de memoria, parches o reemplazos de hardware).
+
+        Redacta en formato ejecutivo y profesional para WhatsApp (usa negritas *texto*, máximo 4 párrafos concisos).
         """
 
         api_key_studio = os.environ.get("GEMINI_API_KEY")
@@ -2732,31 +2761,24 @@ def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: 
         
         informe_completo_texto = response.text.strip()
 
-        # 3. Archivar reporte completo en Firestore
-        doc_ref = db.collection("reportes_prospectiva_profunda").add({
-            "empresa_id": empresa_clean,
-            "solicitante_telefono": telefono_solicitante,
-            "informe_tecnico_completo": informe_completo_texto,
-            "equipos_evaluados": list(historial_equipos.keys()),
-            "timestamp": firestore.SERVER_TIMESTAMP
-        })
-        
-        reporte_id = doc_ref[1].id if isinstance(doc_ref, tuple) else doc_ref.id
+        # 4. Archivar reporte en Firestore
+        try:
+            db.collection("reportes_prospectiva_profunda").add({
+                "target": target_clean,
+                "solicitante_telefono": telefono_solicitante,
+                "informe_tecnico_completo": informe_completo_texto,
+                "equipos_evaluados": list(historial_flota.keys()),
+                "timestamp": firestore.SERVER_TIMESTAMP
+            })
+        except Exception as err_save:
+            print(f"! Error guardando reporte de prospectiva: {sanitize_forensic_log(err_save)}")
 
-        # 4. Enviar resumen corto vía WhatsApp
-        resumen_wa = (
-            f"📊 *SENTINEL SOC: PROSPECTIVA TÉCNICA* 📊\n"
-            f"Organización: *{empresa_clean}* (Ref: `{reporte_id[-6:].upper()}`)\n\n"
-            f"Se completó el análisis pericial a 60 días sobre {len(historial_equipos)} equipo(s).\n\n"
-            f"El informe completo (*Situación, Consecuencias y Acciones*) ha sido archivado en Firebase para consulta en Panel.\n\n"
-            f"💡 *Recomendación:* Revisa las alertas térmicas y de almacenamiento preventivo registradas."
-        )
-        
-        enviar_texto_whatsapp(telefono_solicitante, resumen_wa)
+        # 5. Enviar informe directamente por WhatsApp
+        enviar_texto_whatsapp(telefono_solicitante, informe_completo_texto)
 
     except Exception as e:
         print(f"X Error generando prospectiva profunda: {sanitize_forensic_log(e)}")
-        enviar_texto_whatsapp(telefono_solicitante, "❌ *Sentinel AI:* Ocurrió un error al procesar el análisis de prospectiva profunda.")
+        enviar_texto_whatsapp(telefono_solicitante, "❌ *Sentinel AI:* Ocurrió un error al procesar el análisis de prospectiva técnica.")
 
 # =========================================================================
 # WEBHOOK INTERACTIVO WHATSAPP (VALIDACIÓN ANTI-SPOOFING METAMÁTICA)
