@@ -1004,6 +1004,51 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
         return "ERR_TKT"
 
 # =========================================================================
+# 📞 RESOLUTOR CENTRALIZADO DE CONTACTOS HITL (SUPERVISOR Y ADMIN)
+# =========================================================================
+def obtener_telefonos_responsables(empresa_id: str) -> tuple:
+    """Extrae de forma eficiente los teléfonos de WhatsApp de Supervisor y Admin."""
+    tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
+    if not db:
+        return tel_supervisor, tel_admin
+
+    empresa_norm = str(empresa_id or "").upper().strip()
+    try:
+        usuarios_docs = [d.to_dict() for d in db.collection("usuarios").stream()]
+
+        # 1. Búsqueda prioritaria vinculada a la empresa
+        for u_data in usuarios_docs:
+            u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+            if not u_tel:
+                continue
+            u_emp = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
+            u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+
+            if u_emp == empresa_norm or not empresa_norm or empresa_norm == "DESCONOCIDA":
+                if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
+                    tel_supervisor = str(u_tel)
+                elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
+                    tel_admin = str(u_tel)
+
+        # 2. Fallback global si no se halló un responsable específico para esa empresa
+        if tel_supervisor == "DESCONOCIDO" or tel_admin == "DESCONOCIDO":
+            for u_data in usuarios_docs:
+                u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
+                if not u_tel:
+                    continue
+                u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
+
+                if tel_supervisor == "DESCONOCIDO" and "supervisor" in u_rol:
+                    tel_supervisor = str(u_tel)
+                if tel_admin == "DESCONOCIDO" and "admin" in u_rol:
+                    tel_admin = str(u_tel)
+
+    except Exception as err_tel:
+        print(f"! Advertencia resolviendo contactos de alerta: {sanitize_forensic_log(err_tel)}")
+
+    return tel_supervisor, tel_admin
+
+# =========================================================================
 # 🟢 ENDPOINTS DE ANÁLISIS DE IDENTIDAD ITDR Y SUPERFICIE EASM
 # =========================================================================
 
@@ -1049,39 +1094,8 @@ def api_itdr_analisis():
             print(f"! Fallo no bloqueante en Trazabilidad ITDR: {str(err_trace)}")
             
         try:
-            tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-            if db:
-                usuarios_docs = list(db.collection("usuarios").stream())
-                for d in usuarios_docs:
-                    u_data = d.to_dict()
-                    u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
-                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                    
-                    if not u_tel: continue
-                    if u_empresa == empresa_id or not empresa_id or empresa_id == "DESCONOCIDA":
-                        if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
-                            tel_supervisor = str(u_tel)
-                        elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
-                            tel_admin = str(u_tel)
-
-                if tel_supervisor == "DESCONOCIDO":
-                    for d in usuarios_docs:
-                        u_data = d.to_dict()
-                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                        if "supervisor" in u_rol and u_tel:
-                            tel_supervisor = str(u_tel)
-                            break
-
-                if tel_admin == "DESCONOCIDO":
-                    for d in usuarios_docs:
-                        u_data = d.to_dict()
-                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                        if "admin" in u_rol and u_tel:
-                            tel_admin = str(u_tel)
-                            break
+            # 📞 Búsqueda centralizada optimizada de Supervisor y Admin
+            tel_supervisor, tel_admin = obtener_telefonos_responsables(empresa_id)
 
             if reporte_itdr.get("compromiso_identidad") or reporte_itdr.get("nivel_riesgo") in ["CRITICO", "ALTO"]:
                 solicitar_aprobacion_hitl_whatsapp(
@@ -1148,39 +1162,8 @@ def api_easm_analisis():
             print(f"! Fallo no bloqueante en Trazabilidad o Logging EASM: {str(err_trace)}")
             
         try:
-            tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-            if db:
-                usuarios_docs = list(db.collection("usuarios").stream())
-                for d in usuarios_docs:
-                    u_data = d.to_dict()
-                    u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
-                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                    
-                    if not u_tel: continue
-                    if u_empresa == empresa_id or not empresa_id or empresa_id == "DESCONOCIDA":
-                        if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
-                            tel_supervisor = str(u_tel)
-                        elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
-                            tel_admin = str(u_tel)
-
-                if tel_supervisor == "DESCONOCIDO":
-                    for d in usuarios_docs:
-                        u_data = d.to_dict()
-                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                        if "supervisor" in u_rol and u_tel:
-                            tel_supervisor = str(u_tel)
-                            break
-
-                if tel_admin == "DESCONOCIDO":
-                    for d in usuarios_docs:
-                        u_data = d.to_dict()
-                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                        if "admin" in u_rol and u_tel:
-                            tel_admin = str(u_tel)
-                            break
+            # 📞 Búsqueda centralizada optimizada de Supervisor y Admin
+            tel_supervisor, tel_admin = obtener_telefonos_responsables(empresa_id)
 
             if reporte_easm.get("perimetro_vulnerable") or reporte_easm.get("nivel_riesgo") in ["CRITICO", "ALTO"]:
                 solicitar_aprobacion_hitl_whatsapp(
@@ -1256,39 +1239,8 @@ def crear_endpoint_analisis(endpoint_name, amenaza_key, comando_key):
             except Exception as err_log:
                 print(f"! Error no bloqueante al registrar decisión de simulación: {str(err_log)}")
 
-            tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-            if db:
-                usuarios_docs = list(db.collection("usuarios").stream())
-                for d in usuarios_docs:
-                    u_data = d.to_dict()
-                    u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
-                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                    
-                    if not u_tel: continue
-                    if u_empresa == empresa_id or not empresa_id or empresa_id == "DESCONOCIDA":
-                        if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
-                            tel_supervisor = str(u_tel)
-                        elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
-                            tel_admin = str(u_tel)
-
-                if tel_supervisor == "DESCONOCIDO":
-                    for d in usuarios_docs:
-                        u_data = d.to_dict()
-                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                        if "supervisor" in u_rol and u_tel:
-                            tel_supervisor = str(u_tel)
-                            break
-
-                if tel_admin == "DESCONOCIDO":
-                    for d in usuarios_docs:
-                        u_data = d.to_dict()
-                        u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                        u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                        if "admin" in u_rol and u_tel:
-                            tel_admin = str(u_tel)
-                            break
+            # 📞 Búsqueda centralizada optimizada de Supervisor y Admin
+            tel_supervisor, tel_admin = obtener_telefonos_responsables(empresa_id)
 
             solicitar_aprobacion_hitl_whatsapp(
                 id_equipo=id_equipo, 
@@ -1352,43 +1304,8 @@ def api_simular_infraestructura():
 
         empresa_id = str(empresa_id).upper() if empresa_id else ""
 
-        # 3. Búsqueda flexible de teléfonos de Supervisor y Admin en Firestore
-        tel_supervisor, tel_admin = "DESCONOCIDO", "DESCONOCIDO"
-        if db:
-            usuarios_docs = list(db.collection("usuarios").stream())
-            
-            for d in usuarios_docs:
-                u_data = d.to_dict()
-                u_empresa = str(u_data.get("empresa_id") or u_data.get("empresa") or "").upper()
-                u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                
-                if not u_tel:
-                    continue
-
-                if u_empresa == empresa_id or not empresa_id:
-                    if "supervisor" in u_rol and tel_supervisor == "DESCONOCIDO":
-                        tel_supervisor = str(u_tel)
-                    elif "admin" in u_rol and tel_admin == "DESCONOCIDO":
-                        tel_admin = str(u_tel)
-
-            if tel_supervisor == "DESCONOCIDO":
-                for d in usuarios_docs:
-                    u_data = d.to_dict()
-                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                    if "supervisor" in u_rol and u_tel:
-                        tel_supervisor = str(u_tel)
-                        break
-
-            if tel_admin == "DESCONOCIDO":
-                for d in usuarios_docs:
-                    u_data = d.to_dict()
-                    u_rol = str(u_data.get("rol") or u_data.get("role") or "").lower()
-                    u_tel = u_data.get("telefono_whatsapp") or u_data.get("telefono")
-                    if "admin" in u_rol and u_tel:
-                        tel_admin = str(u_tel)
-                        break
+        # 3. 📞 Búsqueda centralizada optimizada de Supervisor y Admin
+        tel_supervisor, tel_admin = obtener_telefonos_responsables(empresa_id)
 
         # 4. EVALUACIÓN GENERAL COMPLETA DE SLIDERS Y CHECKBOXES ("general_telemetry")
         if tipo_simulacion == "general_telemetry":
@@ -2382,8 +2299,33 @@ def consultar_consumo_finops_empresa(empresa_id: str) -> str:
     except Exception as e:
         return f"Error consultando FinOps: {sanitize_forensic_log(e)}"
 
-# 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING
-# 🧠 MOTOR DE RESPUESTA AGÉNTICA CON FUNCTION CALLING ROBUSTO
+# 🛠️ HERRAMIENTA CHATOPS 8: Desinstalación Remota de Flota
+def desinstalar_flota_completa(empresa_id: str) -> str:
+    """Encola la orden de autodestrucción y desinstalación para todos los computadores de una empresa."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        empresa_clean = str(empresa_id).upper().strip()
+        docs = list(db.collection("auditoria_global").where("cliente.empresa", "==", empresa_clean).stream())
+        
+        if not docs:
+            return f"No se encontraron computadores registrados para {empresa_clean}."
+            
+        conteo = 0
+        for d in docs:
+            d.reference.update({
+                "comandos_pendientes": {
+                    "accion": "desinstalar_agente_local",
+                    "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+                    "estado_ejecucion": "pendiente",
+                    "token_autorizador_oob": "VERIFICADO_CHATOPS_ADMIN_PURGA"
+                }
+            })
+            conteo += 1
+            
+        return f"✅ Orden de desinstalación encolada para {conteo} equipo(s) de {empresa_clean}. En su próximo reporte se autoeliminarán por completo."
+    except Exception as e:
+        return f"Error encolando desinstalación: {sanitize_forensic_log(e)}"
+
 # 🧠 MOTOR DE RESPUESTA AGÉNTICA (TWO-STEP COGNITIVE ROUTER)
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
     contexto_telemetria = "DATOS DE TELEMETRÍA EN TIEMPO REAL DE LA EMPRESA:\n"
@@ -2425,6 +2367,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         "consultar_historial_y_fallas_pc": consultar_historial_y_fallas_pc,
         "consultar_expediente_forense_dfir": consultar_expediente_forense_dfir,
         "ordenar_remediacion_directa": ordenar_remediacion_directa,
+        "desinstalar_flota_completa": desinstalar_flota_completa, # 👈 NUEVA
         "buscar_software_en_flota": buscar_software_en_flota,
         "generar_resumen_ejecutivo_semaforo": generar_resumen_ejecutivo_semaforo,
         "consultar_consumo_finops_empresa": consultar_consumo_finops_empresa
@@ -2444,6 +2387,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         - 'consultar_historial_y_fallas_pc': Parámetro 'identificador_pc_o_usuario'. Para fallas o RCA de un PC.
         - 'consultar_expediente_forense_dfir': Parámetro 'identificador_pc_o_empresa'. Para dictámenes forenses DFIR/RAM/MACE.
         - 'ordenar_remediacion_directa': Parámetros 'identificador_pc', 'accion'. Para ejecutar acciones remotas.
+        - 'desinstalar_flota_completa': Parámetro 'empresa_id'. Para eliminar y desinstalar todos los agentes de una empresa.
         - 'buscar_software_en_flota': Parámetros 'empresa_id', 'software_a_buscar'. Para cazar programas instalados.
         - 'generar_resumen_ejecutivo_semaforo': Parámetro 'empresa_id'. Para fichas de semáforo gerencial.
         - 'consultar_consumo_finops_empresa': Parámetro 'empresa_id'. Para costos de tokens IA.
