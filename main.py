@@ -152,6 +152,8 @@ guardian_registry.registrar_herramienta("forzar_update_av", "predecir_ruta_ataqu
 guardian_registry.registrar_herramienta("evaluar_roi_y_renovacion_pc", "evaluar_roi_y_renovacion_pc", "Ejecuta diagnóstico de ciclos de vida físicos y hardware de silicio.")
 guardian_registry.registrar_herramienta("deshabilitar_impresion", "deshabilitar_impresion", "Deshabilita servicio de Spooler local por motivos ecológicos.")
 guardian_registry.registrar_herramienta("desinstalar_agente_local", "desinstalar_agente_local", "Remueve de forma permanente los binarios del agente local.")
+guardian_registry.registrar_herramienta("desinstalar_agente", "desinstalar_agente_local", "Remueve de forma permanente los binarios del agente local.")
+guardian_registry.registrar_herramienta("uninstall", "desinstalar_agente_local", "Remueve de forma permanente los binarios del agente local.")
 guardian_registry.registrar_herramienta("evaluar_radio_explosion", "evaluar_radio_explosion", "Mide el radio de impacto cruzando niveles de privilegios lógicos.")
 guardian_registry.registrar_herramienta("generar_auditoria_360", None, "Ejecuta un reporte general cognitivo cruzando hardware y secops.")
 guardian_registry.registrar_herramienta("iniciar_triaje_forense", "registrar_evidencia_forense", "Encapsula y resguarda la cadena de custodia bajo ISO 27037.")
@@ -2169,7 +2171,7 @@ def consultar_expediente_forense_dfir(identificador_pc_o_empresa: str) -> str:
 
 # 🛠️ HERRAMIENTA CHATOPS 4: Remediación Directa por Lenguaje Natural
 def ordenar_remediacion_directa(identificador_pc: str, accion: str) -> str:
-    """Encola una orden de contención o mantenimiento remoto (ej: deep_system_tuneup, aislar_equipo, ram_flush, enable_firewall, forzar_update_av, defrag_trim_optimizer, bloquear_shadow_ai) para un equipo específico."""
+    """Encola una orden de contención, mantenimiento o desinstalación remota (ej: desinstalar_agente, deep_system_tuneup, aislar_equipo, ram_flush, enable_firewall, forzar_update_av, defrag_trim_optimizer, bloquear_shadow_ai) para un equipo específico."""
     try:
         if not db: return "Base de datos fuera de línea."
         target = str(identificador_pc).upper().strip()
@@ -2189,15 +2191,18 @@ def ordenar_remediacion_directa(identificador_pc: str, accion: str) -> str:
         if not doc_match:
             return f"No se encontró el PC o usuario '{target}' en los registros."
             
+        # Normalizar para el actuator del agente en Windows
+        accion_final = "desinstalar_agente" if accion_clean in ["desinstalar_agente", "uninstall"] else accion_clean
+
         doc_match.reference.update({
             "comandos_pendientes": {
-                "accion": accion_clean,
+                "accion": accion_final,
                 "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
                 "estado_ejecucion": "pendiente",
                 "token_autorizador_oob": "VERIFICADO_CHATOPS_ADMIN_DIRECTO"
             }
         })
-        return f"✅ Orden '{accion_clean}' despachada para {doc_match.id}. Se ejecutará en su próximo reporte."
+        return f"✅ Orden '{accion_final}' despachada para {doc_match.id}. Se ejecutará en su próximo reporte."
     except Exception as e:
         return f"Error despachando acción: {sanitize_forensic_log(e)}"
 
