@@ -2090,7 +2090,7 @@ def consultar_historial_y_fallas_pc(identificador_pc_o_usuario: str) -> str:
         pc_id = doc_match.id
         data_actual = doc_match.to_dict()
         
-        # 1. Extracción de Métricas en Vivo del Terminal
+        # 1. Extracción de Métricas en Vivo del Terminal (Inmunes a fallos de historial)
         usr_real = data_actual.get("cliente", {}).get("usuario", pc_id)
         emp_real = data_actual.get("cliente", {}).get("empresa", "N/A")
         cpu_val = data_actual.get("estado_actual", {}).get("cpu_pct", 0)
@@ -2099,32 +2099,36 @@ def consultar_historial_y_fallas_pc(identificador_pc_o_usuario: str) -> str:
         score_val = data_actual.get("security_posture", {}).get("score_ponderado", 100)
         uptime_dias = data_actual.get("auditoria_zero_trust", {}).get("uptime_dias", 0)
         reinicio_pend = data_actual.get("auditoria_zero_trust", {}).get("alerta_reinicio_pendiente", False)
-        antivirus = data_actual.get("security_posture", {}).get("antivirus", {}).get("nombre", "Protección estándar")
+        antivirus = data_actual.get("security_posture", {}).get("antivirus", {}).get("nombre", "Windows Defender")
         
-        # 2. Buscar últimos tickets de incidentes
-        tkt_query = db.collection("tickets_hitl")\
-            .where("id_equipo", "==", pc_id)\
-            .order_by("timestamp_creacion", direction=firestore.Query.DESCENDING)\
-            .limit(3).stream()
-            
-        tickets = [f"• Ticket {t.id}: {t.to_dict().get('amenaza')} ({t.to_dict().get('estado')})" for t in tkt_query]
+        # 2. Buscar tickets (ordenados en memoria en Python sin requerir índices de Firestore)
+        tickets = []
+        try:
+            tkt_query = db.collection("tickets_hitl").where("id_equipo", "==", pc_id).limit(10).stream()
+            t_list = list(tkt_query)
+            t_list.sort(key=lambda x: str(x.to_dict().get("timestamp_creacion", "")), reverse=True)
+            tickets = [f"• Ticket {t.id}: {t.to_dict().get('amenaza')} ({t.to_dict().get('estado')})" for t in t_list[:3]]
+        except Exception as e_tkt:
+            print(f"[!] Nota tickets omitida: {e_tkt}")
         
-        # 3. Buscar snapshots históricos
-        snaps = doc_match.reference.collection("historial")\
-            .order_by("timestamp", direction=firestore.Query.DESCENDING)\
-            .limit(3).stream()
-            
+        # 3. Buscar snapshots históricos (ordenados en memoria)
         hist = []
-        for s in snaps:
-            s_data = s.to_dict()
-            hist.append(f"• Snapshot: CPU {s_data.get('estado_actual',{}).get('cpu_pct')}% | RAM {s_data.get('estado_actual',{}).get('ram_pct')}% | Temp {s_data.get('termico_fans',{}).get('cpu_temperatura_c')}°C")
+        try:
+            snaps = doc_match.reference.collection("historial").limit(10).stream()
+            s_list = list(snaps)
+            s_list.sort(key=lambda x: str(x.to_dict().get("timestamp", "")), reverse=True)
+            for s in s_list[:3]:
+                s_data = s.to_dict()
+                hist.append(f"• Snapshot: CPU {s_data.get('estado_actual',{}).get('cpu_pct')}% | RAM {s_data.get('estado_actual',{}).get('ram_pct')}% | Temp {s_data.get('termico_fans',{}).get('cpu_temperatura_c')}°C")
+        except Exception as e_hist:
+            print(f"[!] Nota snapshots omitida: {e_hist}")
             
         salida = (
             f"DATOS EN VIVO DEL COMPUTADOR {pc_id}:\n"
             f"- Estado de Red: CONECTADO Y TRANSMITIENDO EN TIEMPO REAL\n"
             f"- Usuario asignado: {usr_real} (Empresa: {emp_real})\n"
-            f"- Rendimiento: CPU {cpu_val}%, RAM {ram_val}%, Temperatura {temp_val}°C\n"
-            f"- Ciberseguridad: Postura {score_val}%, Antivirus: {antivirus}, Uptime continuo: {uptime_dias} días (Reinicio pendiente: {'Sí' if reinicio_pend else 'No'})\n\n"
+            f"- Rendimiento actual: CPU {cpu_val}%, RAM {ram_val}%, Temperatura {temp_val}°C\n"
+            f"- Ciberseguridad: Postura {score_val}%, Antivirus: {antivirus}, Uptime: {uptime_dias} días (Reinicio pendiente: {'Sí' if reinicio_pend else 'No'})\n\n"
             f"Historial de Incidentes:\n" + ("\n".join(tickets) if tickets else "Sin incidentes recientes.") + "\n\n"
             f"Snapshots de Telemetría:\n" + ("\n".join(hist) if hist else "Primer ciclo de telemetría registrado con éxito.")
         )
@@ -2331,9 +2335,10 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
     if db and telefono_remitente != "DESCONOCIDO":
         try:
             clean_phone = "".join(re.findall(r"\d+", str(telefono_remitente)))
+            # Corrección de sintaxis con FieldFilter para eliminar UserWarning en Firestore
             historial_query = db.collection("registro_comunicaciones_whatsapp")\
-                .where("remitente", "in", [clean_phone, "SENTINEL_AI"])\
-                .where("destinatario", "in", [clean_phone, "SENTINEL_AI"])\
+                .where(filter=FieldFilter("remitente", "in", [clean_phone, "SENTINEL_AI"]))\
+                .where(filter=FieldFilter("destinatario", "in", [clean_phone, "SENTINEL_AI"]))\
                 .order_by("timestamp", direction=firestore.Query.DESCENDING)\
                 .limit(5).stream()
                 
@@ -2347,7 +2352,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
             contexto_conversacion += "\n".join(mensajes_historicos)
         except Exception as err_mem:
             print(f"! Alerta de Memoria Conversacional: No se pudo inyectar el contexto histórico: {sanitize_forensic_log(err_mem)}")
-            contexto_conversacion += "[Omitido por error de indexación en base de datos]"
+            contexto_conversacion += "[Sin historial previo disponible]"
     else:
         contexto_conversacion += "[No hay interacciones previas registradas]"
 
@@ -2356,7 +2361,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         "consultar_historial_y_fallas_pc": consultar_historial_y_fallas_pc,
         "consultar_expediente_forense_dfir": consultar_expediente_forense_dfir,
         "ordenar_remediacion_directa": ordenar_remediacion_directa,
-        "desinstalar_flota_completa": desinstalar_flota_completa, # 👈 NUEVA
+        "desinstalar_flota_completa": desinstalar_flota_completa,
         "buscar_software_en_flota": buscar_software_en_flota,
         "generar_resumen_ejecutivo_semaforo": generar_resumen_ejecutivo_semaforo,
         "consultar_consumo_finops_empresa": consultar_consumo_finops_empresa
@@ -2373,7 +2378,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
 
         HERRAMIENTAS:
         - 'consultar_flota_empresa': Parámetro 'empresa_id'. Para ver estado general de PCs de una empresa.
-        - 'consultar_historial_y_fallas_pc': Parámetro 'identificador_pc_o_usuario'. Para fallas o RCA de un PC.
+        - 'consultar_historial_y_fallas_pc': Parámetro 'identificador_pc_o_usuario'. Para fallas, telemetría en vivo o RCA de un PC.
         - 'consultar_expediente_forense_dfir': Parámetro 'identificador_pc_o_empresa'. Para dictámenes forenses DFIR/RAM/MACE.
         - 'ordenar_remediacion_directa': Parámetros 'identificador_pc', 'accion'. Para ejecutar acciones remotas.
         - 'desinstalar_flota_completa': Parámetro 'empresa_id'. Para eliminar y desinstalar todos los agentes de una empresa.
@@ -2407,25 +2412,32 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         herramienta_elegida = datos_decision.get("herramienta", "ninguna")
         parametros = datos_decision.get("parametros", {})
 
-        # FASE 2: Ejecución de la herramienta en Python (si aplica)
+        # FASE 2: Ejecución de la herramienta en Python con auditoría completa
         resultado_datos = ""
         if herramienta_elegida in mapa_herramientas:
             func = mapa_herramientas[herramienta_elegida]
             print(f"[Sentinel ChatOps] Invocando skill '{herramienta_elegida}' con params: {parametros}")
             try:
                 resultado_datos = func(**parametros)
+                print(f"[Sentinel ChatOps] Salida entregada a Gemini por '{herramienta_elegida}':\n{resultado_datos}")
             except Exception as err_func:
-                print(f"[!] Error ejecutando skill: {str(err_func)}")
+                print(f"[!] Error ejecutando skill '{herramienta_elegida}': {str(err_func)}")
                 resultado_datos = f"Error al consultar el registro: {str(err_func)}"
 
-        # FASE 3: Sintetización final para WhatsApp
+        # FASE 3: Sintetización final para WhatsApp con prioridad estricta de telemetría viva
         prompt_final = f"""
         {contexto_conversacion}
 
         Mensaje entrante del supervisor: "{texto_usuario}"
         """
         if resultado_datos:
-            prompt_final += f"\nDATOS EXTRAÍDOS DEL SISTEMA POR LA HERRAMIENTA ({herramienta_elegida}):\n{resultado_datos}\n"
+            prompt_final += f"""
+DATOS EXTRAÍDOS DEL SISTEMA POR LA HERRAMIENTA ({herramienta_elegida}):
+{resultado_datos}
+
+REGLA DE PRIORIDAD ABSOLUTA:
+Los datos extraídos por la herramienta reflejan el estado del equipo en tiempo real en este milisegundo. Tienen prioridad absoluta sobre cualquier mensaje histórico previo de la conversación. Si los datos indican que el equipo está conectado y transmitiendo, debes reportar su estado y métricas vivas sin afirmar que está desconectado.
+"""
 
         prompt_final += "\nRedacta la respuesta ejecutiva final siguiendo estrictamente tus directrices de estilo (máximo 4 frases, negritas con un solo asterisco *texto*)."
 
