@@ -1436,14 +1436,28 @@ def api_forense_remediacion_real():
                     )
                     enviar_texto_whatsapp(tel_sup, msg)
 
+        # Higiene de Base de Datos: Purgado de Desinstalados vs Cierre de Remediaciones
         if db and id_equipo != "DESCONOCIDO":
-            db.collection("auditoria_global").document(id_equipo).set({
-                "comandos_pendientes": {
-                    "estado_ejecucion": "completado",
-                    "resultado_detalles": detalles,
-                    "timestamp_cierre": firestore.SERVER_TIMESTAMP
-                }
-            }, merge=True)
+            if accion == "desinstalar_agente_local":
+                doc_origen = db.collection("auditoria_global").document(id_equipo).get()
+                if doc_origen.exists:
+                    datos_historicos = doc_origen.to_dict()
+                    datos_historicos["fecha_desincorporacion"] = firestore.SERVER_TIMESTAMP
+                    datos_historicos["motivo"] = "Desinstalación remota autorizada por ChatOps"
+                    datos_historicos["resultado_detalles"] = detalles
+                    
+                    # Archivar snapshot inmutable y remover de la flota activa
+                    db.collection("equipos_desincorporados").document(id_equipo).set(datos_historicos)
+                    db.collection("auditoria_global").document(id_equipo).delete()
+                    print(f"[Sentinel SOC] Host {id_equipo} purgado de auditoria_global y archivado en equipos_desincorporados.")
+            else:
+                db.collection("auditoria_global").document(id_equipo).set({
+                    "comandos_pendientes": {
+                        "estado_ejecucion": "completado",
+                        "resultado_detalles": detalles,
+                        "timestamp_cierre": firestore.SERVER_TIMESTAMP
+                    }
+                }, merge=True)
 
         return jsonify({"status": "success", "message": "Resolución procesada exitosamente."}), 200
     except Exception as e:
@@ -1687,7 +1701,6 @@ def api_remediar_dispositivo():
         print(f"X Fallo en despacho centralizado HITL: {str(e)}")
         return jsonify({"status": "error", "message": f"Fallo interno en el servidor perimetral: {str(e)}"}), 500
 
-
 # =========================================================================
 # RUTA API RECEPTORA DE TELEMETRÍA (api_diagnostico_pc)
 # =========================================================================
@@ -1738,6 +1751,24 @@ def api_diagnostico_pc():
                 
                 # B. Snapshot Histórico Inmutable para Prospectiva a 60 días
                 doc_equipo_ref.collection("historial").add(datos_guardar)
+
+                # C. Verificación de Alerta Proactiva de Reconexión solicitada por ChatOps
+                try:
+                    alerta_doc = db.collection("alertas_conexion_pendientes").document(uid_equipo).get()
+                    if alerta_doc.exists and alerta_doc.to_dict().get("estado") == "pendiente":
+                        alerta_data = alerta_doc.to_dict()
+                        tel_destino = alerta_data.get("telefono_notificar")
+                        usr_nombre = alerta_data.get("usuario", uid_equipo)
+                        msg_aviso = (
+                            f"🟢 *AVISO DE CONEXIÓN: EQUIPO EN LÍNEA*\n\n"
+                            f"El computador de *{usr_nombre}* (`{uid_equipo}`) se acaba de encender y está transmitiendo telemetría en tiempo real."
+                        )
+                        if tel_destino:
+                            enviar_texto_whatsapp(tel_destino, msg_aviso)
+                        db.collection("alertas_conexion_pendientes").document(uid_equipo).delete()
+                        print(f"[Sentinel SOC] Alerta de reconexión despachada exitosamente para {uid_equipo}")
+                except Exception as err_alerta:
+                    print(f"! Error despachando alerta proactiva de conexión: {sanitize_forensic_log(err_alerta)}")
                 
             except Exception as err_db:
                 # Sanitización estricta OWASP ASVS 7.3.1
@@ -2197,6 +2228,19 @@ def ordenar_remediacion_directa(identificador_pc: str, accion: str) -> str:
         else:
             accion_final = accion_clean
 
+        # Evaluar estado de conexión (margen de 10 minutos respecto al último reporte)
+        datos_pc = doc_match.to_dict()
+        ts_ultimo = datos_pc.get("timestamp")
+        esta_online = False
+        if ts_ultimo:
+            try:
+                dt_ultimo = ts_ultimo if hasattr(ts_ultimo, "tzinfo") else ts_ultimo.to_datetime()
+                ahora = datetime.now(dt_ultimo.tzinfo) if dt_ultimo.tzinfo else datetime.utcnow()
+                esta_online = (ahora - dt_ultimo).total_seconds() < 600
+            except Exception:
+                esta_online = False
+
+        # Encolamiento garantizado en Firestore
         doc_match.reference.update({
             "comandos_pendientes": {
                 "accion": accion_final,
@@ -2205,7 +2249,12 @@ def ordenar_remediacion_directa(identificador_pc: str, accion: str) -> str:
                 "token_autorizador_oob": "VERIFICADO_CHATOPS_ADMIN_DIRECTO"
             }
         })
-        return f"✅ Orden '{accion_final}' despachada para {doc_match.id}. Se ejecutará en su próximo reporte."
+
+        if esta_online:
+            return f"✅ Orden '{accion_final}' despachada para {doc_match.id}. El equipo está en línea y la procesará en breve."
+        else:
+            return f"⏳ El equipo {doc_match.id} se encuentra apagado o fuera de línea. La orden '{accion_final}' quedó programada y se ejecutará de inmediato apenas inicie Windows."
+
     except Exception as e:
         return f"Error despachando acción: {sanitize_forensic_log(e)}"
 
@@ -2327,6 +2376,35 @@ def desinstalar_flota_completa(empresa_id: str) -> str:
     except Exception as e:
         return f"Error encolando desinstalación: {sanitize_forensic_log(e)}"
 
+# 🛠️ HERRAMIENTA CHATOPS 9: Programar Alerta de Reconexión
+def solicitar_alerta_conexion(identificador_pc_o_usuario: str, telefono_solicitante: str) -> str:
+    """Programa un recordatorio proactivo para avisar al supervisor vía WhatsApp cuando una máquina apagada vuelva a transmitir."""
+    try:
+        if not db: return "Base de datos fuera de línea."
+        target = str(identificador_pc_o_usuario).upper().strip()
+        docs = list(db.collection("auditoria_global").stream())
+        doc_match = None
+        for d in docs:
+            usr = str(d.to_dict().get("cliente", {}).get("usuario", "")).upper()
+            if target in d.id.upper() or (usr and target in usr):
+                doc_match = d
+                break
+                
+        if not doc_match:
+            return f"No se encontró el PC o usuario '{target}' para programar el aviso."
+
+        uid_pc = doc_match.id
+        db.collection("alertas_conexion_pendientes").document(uid_pc).set({
+            "uid": uid_pc,
+            "usuario": doc_match.to_dict().get("cliente", {}).get("usuario", uid_pc),
+            "telefono_notificar": str(telefono_solicitante),
+            "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+            "estado": "pendiente"
+        })
+        return f"🔔 Alerta programada: Te notificaré automáticamente por WhatsApp apenas {uid_pc} vuelva a conectarse y transmitir telemetría."
+    except Exception as e:
+        return f"Error programando alerta de conexión: {sanitize_forensic_log(e)}"
+
 # 🧠 MOTOR DE RESPUESTA AGÉNTICA (TWO-STEP COGNITIVE ROUTER)
 def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitente="DESCONOCIDO"):
     contexto_telemetria = "DATOS DE TELEMETRÍA EN TIEMPO REAL DE LA EMPRESA:\n"
@@ -2372,7 +2450,11 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         "desinstalar_flota_completa": desinstalar_flota_completa,
         "buscar_software_en_flota": buscar_software_en_flota,
         "generar_resumen_ejecutivo_semaforo": generar_resumen_ejecutivo_semaforo,
-        "consultar_consumo_finops_empresa": consultar_consumo_finops_empresa
+        "consultar_consumo_finops_empresa": consultar_consumo_finops_empresa,
+        "solicitar_alerta_conexion": lambda **kw: solicitar_alerta_conexion(
+            kw.get("identificador_pc_o_usuario") or kw.get("identificador_pc") or kw.get("usuario", ""),
+            telefono_remitente
+        )
     }
 
     try:
@@ -2394,6 +2476,7 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         - 'generar_resumen_ejecutivo_semaforo': Parámetro 'empresa_id'. Para fichas de semáforo gerencial.
         - 'consultar_consumo_finops_empresa': Parámetro 'empresa_id'. Para costos de tokens IA.
         - 'ninguna': ÚNICAMENTE para saludos de cortesía o dudas teóricas sin relación con acciones operativas.
+        - 'solicitar_alerta_conexion': Parámetro 'identificador_pc_o_usuario'. OBLIGATORIO cuando el usuario pida que le avisen, notifiquen o informen cuando un equipo apagado o desconectado se encienda o vuelva a conectarse.
 
         {contexto_conversacion}
 
