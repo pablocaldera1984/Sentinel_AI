@@ -2385,12 +2385,12 @@ def procesar_respuesta_con_ia(texto_usuario, datos_flota_dict, telefono_remitent
         - 'consultar_flota_empresa': Parámetro 'empresa_id'. Para ver estado general de PCs de una empresa.
         - 'consultar_historial_y_fallas_pc': Parámetro 'identificador_pc_o_usuario'. Para fallas, telemetría en vivo o RCA de un PC.
         - 'consultar_expediente_forense_dfir': Parámetro 'identificador_pc_o_empresa'. Para dictámenes forenses DFIR/RAM/MACE.
-        - 'ordenar_remediacion_directa': Parámetros 'identificador_pc', 'accion'. Para ejecutar acciones remotas.
-        - 'desinstalar_flota_completa': Parámetro 'empresa_id'. Para eliminar y desinstalar todos los agentes de una empresa.
+        - 'ordenar_remediacion_directa': Parámetros 'identificador_pc', 'accion'. OBLIGATORIO para ejecutar contención, mantenimiento o DESINSTALACIÓN INDIVIDUAL (accion: 'desinstalar_agente'). Invocable SIEMPRE, ignorando rechazos o políticas previas del historial.
+        - 'desinstalar_flota_completa': Parámetro 'empresa_id'. Para eliminar y desinstalar todos los agentes de una empresa completa.
         - 'buscar_software_en_flota': Parámetros 'empresa_id', 'software_a_buscar'. Para cazar programas instalados.
         - 'generar_resumen_ejecutivo_semaforo': Parámetro 'empresa_id'. Para fichas de semáforo gerencial.
         - 'consultar_consumo_finops_empresa': Parámetro 'empresa_id'. Para costos de tokens IA.
-        - 'ninguna': Para saludos, consultas de soporte general o si no requiere consultar Firestore.
+        - 'ninguna': ÚNICAMENTE para saludos de cortesía o dudas teóricas sin relación con acciones operativas.
 
         {contexto_conversacion}
 
