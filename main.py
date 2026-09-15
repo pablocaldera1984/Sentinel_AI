@@ -2191,8 +2191,11 @@ def ordenar_remediacion_directa(identificador_pc: str, accion: str) -> str:
         if not doc_match:
             return f"No se encontró el PC o usuario '{target}' en los registros."
             
-        # Normalizar para el actuator del agente en Windows
-        accion_final = "desinstalar_agente" if accion_clean in ["desinstalar_agente", "uninstall"] else accion_clean
+        # Normalizar para el actuator del agente en Windows (requiere 'desinstalar_agente_local')
+        if accion_clean in ["desinstalar_agente", "desinstalar_agente_local", "uninstall", "desinstalar"]:
+            accion_final = "desinstalar_agente_local"
+        else:
+            accion_final = accion_clean
 
         doc_match.reference.update({
             "comandos_pendientes": {
