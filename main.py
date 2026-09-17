@@ -222,6 +222,7 @@ guardian_registry.registrar_herramienta("auditar_identidad_cloud", "analizar_ide
 guardian_registry.registrar_herramienta("auditar_perimetro_easm", "analizar_superficie_externa", "Procesa syslogs perimetrales cazando exploits en hardware de borde.")
 guardian_registry.registrar_herramienta("ok", None, "Usa este comando si las métricas operan con total normalidad.")
 guardian_registry.registrar_herramienta("deep_system_tuneup","evaluar_roi_y_renovacion_pc","Ejecuta optimización electrónica TRIM en SSD, libera espacio temporal y repara conexiones de red.")
+guardian_registry.registrar_herramienta("blindar_movimiento_lateral", "predecir_ruta_ataque", "Aplica microsegmentación local cerrando puertos SMB, RPC y RDP frente a movimientos laterales.")
 
 # Asignación automática de variables globales para compatibilidad descendente con el resto del script
 LISTA_BLANCA_HERRAMIENTAS = guardian_registry.lista_blanca
@@ -401,6 +402,7 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
 # =========================================================================
 DICCIONARIO_ACCIONES_AMIGABLES = {
     "aislar_equipo": {"singular": "aislar el equipo", "plural": "aislar los equipos"},
+"blindar_movimiento_lateral": {"singular": "cerrar los puertos de red local para frenar el movimiento lateral", "plural": "aplicar microsegmentación de red en la flota"},
     "bloquear_shadow_ai": {"singular": "bloquear el acceso a Shadow AI", "plural": "bloquear el acceso a Shadow AI en la flota"},
     "enable_firewall": {"singular": "activar el cortafuegos local", "plural": "activar el cortafuegos local en las terminales"},
     "forzar_update_av": {"singular": "actualizar las firmas del antivirus", "plural": "actualizar las firmas del antivirus en los sistemas"},
