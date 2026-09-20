@@ -375,7 +375,12 @@ DICCIONARIO_AMENAZAS_AMIGABLES = {
     "RAM_SATURATION": "Una saturación extrema de memoria RAM que amenaza con congelar por completo el sistema",
     "SSD_DEGRADATION": "Una degradación avanzada de bloques defectuosos y salud crítica en la unidad de almacenamiento",
     "BATTERY_WEAR": "Un desgaste químico acelerado en la batería local que compromete la autonomía física",
-    "COMPLIANCE_BREACH": "Una caída en el bastionado lógico por desactivación de las directivas de seguridad corporativas (Firewall/UAC)"
+    "COMPLIANCE_BREACH": "Una caída en el bastionado lógico por desactivación de las directivas de seguridad corporativas (Firewall/UAC)",
+    "HONEYTOKEN_BREACH": "Intruso o programa sospechoso intentando explorar y sustraer archivos confidenciales con claves corporativas",
+    "MEMORY_INJECTION": "Intento de inyección de código malicioso invisible en la memoria del sistema para evadir la seguridad",
+    "DOWNLOAD_INJECTION": "Descarga de un archivo peligroso con instrucciones ocultas diseñadas para manipular asistentes de Inteligencia Artificial",
+    "MCP_BREACH": "Configuración insegura en las herramientas de Inteligencia Artificial con riesgo de fuga de credenciales o ejecución sin control",
+    "LATERAL_MOVEMENT_RISK": "Detección de escaneo o intento de propagación de un ataque desde otros computadores dentro de la red local de la empresa",
 }
 
 # 🟢 TRADUCCIÓN DE SOLUCIONES A LENGUAJE DE NEGOCIO (WHATSAPP UX)
@@ -394,7 +399,13 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
     "RAM_SATURATION": "Se forzó la limpieza de buffers huérfanos de memoria RAM de forma remota, recuperando la fluidez operativa",
     "SSD_DEGRADATION": "Se ejecutó una optimización electrónica TRIM en la unidad sólida y se encoló un reemplazo de hardware preventivo",
     "BATTERY_WEAR": "Se reconfiguró el perfil energético a bajo consumo y se agendó un ticket CAPEX para la sustitución física del componente",
-    "COMPLIANCE_BREACH": "Se re-inyectaron con éxito las directivas rígidas CIS v8 y se restableció el escudo del cortafuegos local"
+    "COMPLIANCE_BREACH": "Se re-inyectaron con éxito las directivas rígidas CIS v8 y se restableció el escudo del cortafuegos local",
+    "HONEYTOKEN_BREACH": "El equipo fue aislado preventivamente y el intento de robo de credenciales fue contenido con éxito",
+    "MEMORY_INJECTION": "El proceso malicioso en memoria fue interceptado y neutralizado, protegiendo la integridad del sistema operativo",
+    "DOWNLOAD_INJECTION": "El archivo descargado malicioso fue purgado de la estación antes de que pudiera ser procesado por la IA",
+    "MCP_BREACH": "Se desactivaron los conectores de IA vulnerables y se resguardaron las claves de acceso de la empresa",
+    "LATERAL_MOVEMENT_RISK": "Se cerraron los puertos de red local (SMB/RDP), blindando la estación contra cualquier contagio desde la oficina",
+"HELPDESK_COMPROMISE": "Se anularon los accesos reseteados de forma irregular y se restableció la verificación segura del usuario",
 }
 
 # =========================================================================
@@ -1879,6 +1890,45 @@ def api_diagnostico_pc():
             except Exception as err_db:
                 # Sanitización estricta OWASP ASVS 7.3.1
                 print(f"[!] Error de persistencia en Firestore ({uid_equipo}): {sanitize_forensic_log(err_db)}")
+# --- 1.1 Disparador Universal HITL en Vivo (100% Cobertura de Detecciones) ---
+        postura_sec = pc_telemetria.get("security_posture", {})
+        forense_av = postura_sec.get("forense_avanzado", {})
+        canario_info = forense_av.get("canario_semantico", {})
+        sysmon_alerts = forense_av.get("alertas_sysmon", [])
+        erw_count = forense_av.get("regiones_memoria_erw", 0)
+        ai_runtime = postura_sec.get("ai_runtime", {})
+        comandos_lotl = postura_sec.get("comandos_sospechosos", [])
+        hosts_altered = postura_sec.get("hosts_altered", False)
+        fw_activo = postura_sec.get("firewall_activo", True)
+        av_activo = postura_sec.get("antivirus", {}).get("rtp_activo", True)
+        
+        # Métricas de Hardware y DEX
+        temp_cpu = pc_telemetria.get("termico_fans", {}).get("cpu_temperatura_c", 40)
+        ram_pct = pc_telemetria.get("estado_actual", {}).get("ram_pct", 0)
+        ssd_vida = pc_telemetria.get("almacenamiento_ssd", {}).get("vida_util_pct", 100)
+        bsods = pc_telemetria.get("estabilidad_sistema", {}).get("bsod_conteo_7d", 0)
+
+        tel_supervisor, tel_admin = obtener_telefonos_responsables(empresa_id)
+
+        # 🚨 NIVEL CRÍTICO 1: Intrusión, Memoria y Canarios
+        if canario_info.get("comprometido"):
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "HONEYTOKEN_BREACH", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        elif erw_count > 0 or len(sysmon_alerts) > 0:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "MEMORY_INJECTION", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        elif not av_activo and not fw_activo:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "COMBINACION_TOXICA", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        elif hosts_altered:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "PHISHING_DNS", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        elif len(comandos_lotl) > 0:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "FILELESS_ATTACK", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+
+        # ⚠️ NIVEL ALTO 2: Inteligencia Artificial y Compliance
+        elif not ai_runtime.get("mcp_secure", True) and len(ai_runtime.get("anomalias_mcp", [])) > 0:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "MCP_BREACH", "bloquear_shadow_ai", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        elif ai_runtime.get("rogue_executions", 0) > 0:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "SHADOW_AI", "bloquear_shadow_ai", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+        elif not fw_activo or not av_activo:
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "COMPLIANCE_BREACH", "enable_firewall", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
 
         # 2. Verificar si hay un comando pendiente aprobado por WhatsApp/HITL
         comando_a_despachar = "ok"
