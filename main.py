@@ -1923,6 +1923,8 @@ def api_diagnostico_pc():
             solicitar_aprobacion_hitl_whatsapp(uid_equipo, "FILELESS_ATTACK", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
 
         # ⚠️ NIVEL ALTO 2: Inteligencia Artificial y Compliance
+        elif ai_runtime.get("download_injection_risk", False):
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "DOWNLOAD_INJECTION", "clear_cache", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         elif not ai_runtime.get("mcp_secure", True) and len(ai_runtime.get("anomalias_mcp", [])) > 0:
             solicitar_aprobacion_hitl_whatsapp(uid_equipo, "MCP_BREACH", "bloquear_shadow_ai", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         elif ai_runtime.get("rogue_executions", 0) > 0:
