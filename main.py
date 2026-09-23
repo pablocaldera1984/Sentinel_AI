@@ -1076,6 +1076,30 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
                 print(f"[AIOps COOLDOWN] Alerta de hardware '{amenaza}' para {id_equipo} omitida por ventana activa de 24h.")
                 return "COOLDOWN_ACTIVO"
 
+        # 🟢 ANTI-SPAM EN VIVO: Si ya existe un ticket pendiente reciente (< 30 min) para este equipo y amenaza, no duplicar
+        if db:
+            tickets_stream = db.collection("tickets_hitl")\
+                .where("id_equipo", "==", str(id_equipo).upper())\
+                .where("amenaza", "==", amenaza)\
+                .where("estado", "==", "pendiente_aprobacion_hitl")\
+                .limit(5).stream()
+
+            ahora_utc = datetime.utcnow()
+            for doc_tkt in tickets_stream:
+                t_data = doc_tkt.to_dict()
+                ts_creacion = t_data.get("timestamp_creacion")
+                
+                # Parsear timestamp de Firestore a datetime para comparar sin requerir índices compuestos
+                dt_creacion = None
+                if hasattr(ts_creacion, "to_datetime"):
+                    dt_creacion = ts_creacion.to_datetime().replace(tzinfo=None)
+                elif isinstance(ts_creacion, datetime):
+                    dt_creacion = ts_creacion.replace(tzinfo=None)
+
+                if dt_creacion and (ahora_utc - dt_creacion).total_seconds() < 1800:  # 30 minutos
+                    print(f"[AIOps HITL] Ya existe un ticket activo reciente ({doc_tkt.id}) para {id_equipo} [{amenaza}]. Omitiendo despacho duplicado.")
+                    return "TICKET_DUPLICADO_IGNORADO"
+
         tkt_id = f"TKT-{int(time.time() * 1000) % 10000:04d}"
         if db:
             db.collection("tickets_hitl").document(tkt_id).set({
@@ -2989,6 +3013,7 @@ def generar_reporte_prospectiva_profunda(empresa_id: str, telefono_solicitante: 
 # WEBHOOK INTERACTIVO WHATSAPP (VALIDACIÓN ANTI-SPOOFING METAMÁTICA)
 # =========================================================================
 @app.route('/webhook', methods=['GET', 'POST'])
+@limiter.exempt
 def webhook_whatsapp():
     if request.method == 'GET':
         mode = request.args.get('hub.mode')
