@@ -195,6 +195,8 @@ guardian_registry = RegistroGuardianSOC()
 # 🧠 REGISTRO MAESTRO DE TODAS TUS SKILLS (UNIFICADO EN UN SOLO PUNTO)
 guardian_registry.registrar_herramienta("ram_flush", "analizar_historico_y_seguridad", "Limpia buffers de memoria e inspecciona persistencia temporal.")
 guardian_registry.registrar_herramienta("clear_cache", "analizar_historico_y_seguridad", "Descarga caches lógicas de la estación de trabajo.")
+guardian_registry.registrar_herramienta("purgar_descargas_sospechosas", "predecir_ruta_ataque", "Elimina selectiva y físicamente archivos con cargas maliciosas de la carpeta Descargas.")
+guardian_registry.registrar_herramienta("restaurar_hosts", "predecir_ruta_ataque", "Restaura el archivo hosts de Windows a su configuración limpia oficial.")
 guardian_registry.registrar_herramienta("repair_network", "predecir_threat_comportamiento", "Analiza métricas de red y re-enruta el tráfico de interfaces.")
 guardian_registry.registrar_herramienta("time_sync", "analizar_historico_y_seguridad", "Sincroniza marcas de tiempo de los relojes de hardware.")
 guardian_registry.registrar_herramienta("print_spooler_resurrector", "predecir_threat_comportamiento", "Levanta servicios caídos de cola de impresión local.")
@@ -412,6 +414,8 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
 # 🟢 MAESTRO UNIVERSAL DE ACCIONES A LENGUAJE NATURAL (WHATSAPP UX)
 # =========================================================================
 DICCIONARIO_ACCIONES_AMIGABLES = {
+    "purgar_descargas_sospechosas": {"singular": "eliminar el archivo sospechoso de Descargas", "plural": "purgar archivos de descargas maliciosos"},
+    "restaurar_hosts": {"singular": "restaurar el archivo hosts limpio", "plural": "restaurar el archivo hosts en la flota"},
     "aislar_equipo": {"singular": "aislar el equipo", "plural": "aislar los equipos"},
 "blindar_movimiento_lateral": {"singular": "cerrar los puertos de red local para frenar el movimiento lateral", "plural": "aplicar microsegmentación de red en la flota"},
     "bloquear_shadow_ai": {"singular": "bloquear el acceso a Shadow AI", "plural": "bloquear el acceso a Shadow AI en la flota"},
@@ -465,36 +469,8 @@ def obtener_accion_humana_segura(comando_raw: str, tipo_numero: str = "singular"
     return "aplicar la contención preventiva de seguridad estándar"
 
 def simular_resolucion_automatica_whatsapp(id_equipo, amenaza_key, tkt_id, telefono_supervisor):
-    try:
-        telefono_destino = telefono_supervisor
-        if db:
-            tkt_doc = db.collection("tickets_hitl").document(tkt_id).get()
-            if tkt_doc.exists:
-                tkt_data = tkt_doc.to_dict()
-                estado_actual = tkt_data.get("estado", "")
-                aprobado_por = tkt_data.get("aprobado_por")
-                
-                if estado_actual == "pendiente_aprobacion_hitl":
-                    print(f"[AIOps SIMULATION] Ticket {tkt_id} expiró sin respuesta. El escalamiento sigue activo.")
-                    return
-                elif estado_actual == "rechazado":
-                    print(f"[AIOps SIMULATION] Ticket {tkt_id} fue rechazado. No se ejecuta contención.")
-                    return
-                
-                if aprobado_por:
-                    telefono_destino = aprobado_por
-                    
-        solucion_amigable = DICCIONARIO_SOLUCIONES_AMIGABLES.get(amenaza_key, "Las contenciones preventivas fueron aplicadas con éxito.")
-        
-        mensaje_cierre = (
-            f"✅ *MONITOREO: INCIDENTE SOLUCIONADO* ✅\n"
-            f"Sentinel AI aplicó de forma autónoma las medidas de contención en el equipo de {limpiar_identificador_usuario(id_equipo)}. "
-            f"{solucion_amigable} El estado de la flota ha vuelto a la normalidad y opera de manera segura (Ticket: {tkt_id})."
-        )
-        enviar_texto_whatsapp(telefono_destino, mensaje_cierre)
-        print(f"[AIOps SIMULATION] Simulación de remediación enviada con éxito a {telefono_destino} para el ticket {tkt_id}.")
-    except Exception as e:
-        print(f"X Error en el hilo de simulación de cierre: {str(e)}")
+    # Función deshabilitada: las confirmaciones ahora solo las envía el actuador físico real
+    pass
 
 # SKILL: AUDITORÍA TELEMETRÍA 360 GENERAL (HARDENING PROMPT INJECTION + MCP AUDIT)
 def analizar_telemetria_360(telemetria_cruda: dict) -> dict:
@@ -1131,13 +1107,13 @@ def solicitar_aprobacion_hitl_whatsapp(id_equipo: str, amenaza: str, comando_sug
 
         # Crear y registrar los timers
         timer_esc = threading.Timer(60.0, esclalar_alerta_admin_hitl, args=[tkt_id, telefono_admin])
-        timer_cie = threading.Timer(120.0, simular_resolucion_automatica_whatsapp, args=[id_equipo, amenaza, tkt_id, telefono_supervisor])
+        # timer_cie = threading.Timer(120.0, simular_resolucion_automatica_whatsapp, args=[id_equipo, amenaza, tkt_id, telefono_supervisor])
         
         TIMERS_ACTIVOS[f"esc_{tkt_id}"] = timer_esc
-        TIMERS_ACTIVOS[f"cie_{tkt_id}"] = timer_cie
+        # TIMERS_ACTIVOS[f"cie_{tkt_id}"] = timer_cie
 
         timer_esc.start()
-        timer_cie.start()
+        # timer_cie.start()
         
         return tkt_id
     except Exception as e:
@@ -1948,7 +1924,7 @@ def api_diagnostico_pc():
 
         # ⚠️ NIVEL ALTO 2: Inteligencia Artificial y Compliance
         elif ai_runtime.get("download_injection_risk", False):
-            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "DOWNLOAD_INJECTION", "clear_cache", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "DOWNLOAD_INJECTION", "purgar_descargas_sospechosas", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         elif not ai_runtime.get("mcp_secure", True) and len(ai_runtime.get("anomalias_mcp", [])) > 0:
             solicitar_aprobacion_hitl_whatsapp(uid_equipo, "MCP_BREACH", "bloquear_shadow_ai", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         elif ai_runtime.get("rogue_executions", 0) > 0:
@@ -3193,16 +3169,8 @@ def webhook_whatsapp():
                             
                             enviar_texto_whatsapp(
                                 telefono_remitente, 
-                                f"✅ *Sentinel SOC:* Orden de contención recibida para el ticket `{tkt_id}`. Aplicando aislamiento preventivo del activo..."
+                                f"⏳ *Sentinel SOC:* Orden autorizada para el ticket `{tkt_id}`. Despachando comando de contención al agente local en la estación..."
                             )
-                            
-                            timer_cierre = threading.Timer(
-                                60.0, 
-                                simular_resolucion_automatica_whatsapp, 
-                                args=[id_equipo_target, amenaza_key, tkt_id, telefono_remitente]
-                            )
-                            TIMERS_ACTIVOS[f"cie_res_{tkt_id}"] = timer_cierre
-                            timer_cierre.start()
                             
                             return jsonify({"status": "success"}), 200
 
