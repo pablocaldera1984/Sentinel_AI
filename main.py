@@ -2445,7 +2445,7 @@ def api_diagnostico_pc():
         if dlp_leaks > 0:
             detalle_dlp = vault_info.get("detalle_dlp") or f"Exfiltración de datos sensibles detectada ({dlp_leaks} incidentes en portapapeles)"
             amenaza_dlp = f"Fuga DLP / Ley 21.719: {detalle_dlp}"
-            solicitar_aprobacion_hitl_whatsapp(
+            ticket_dlp = solicitar_aprobacion_hitl_whatsapp(
                 uid_equipo,
                 amenaza_dlp,
                 "purgar_portapapeles",
@@ -2454,6 +2454,9 @@ def api_diagnostico_pc():
                 COLECCION_TELEMETRIA,
                 empresa_id
             )
+            diagnostico_final = f"Riesgo de fuga de información (DLP): {detalle_dlp}. Se ha despachado solicitud de contención al supervisor."
+            mini_herramienta_sugerida = "esperar_autorizacion_hitl"
+            token_oob_generado = ticket_dlp or "PENDIENTE_HITL_DLP"
         
         if es_malware_confirmado:
             solicitar_aprobacion_hitl_whatsapp(uid_equipo, "MALWARE_CONFIRMADO", "purgar_descargas_sospechosas", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
