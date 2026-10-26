@@ -631,6 +631,8 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
     "FLEET_LATERAL_ATTACK": "Se aplicó una vacuna preventiva en toda la flota bloqueando las direcciones IP y archivos del atacante",
     "MALWARE_CONFIRMADO": "El binario malicioso fue interceptado, neutralizado y purgado de la estación de trabajo",
     "BINARIO_NO_FIRMADO": "El ejecutable no firmado fue bloqueado y puesto en cuarentena preventiva",
+    "DLP_LEAK": "El portapapeles del sistema fue purgado de inmediato y se registró la traza forense de exfiltración bajo cumplimiento Ley 21.719",
+    "purgar_portapapeles": "El portapapeles del sistema fue purgado de inmediato y se registró la traza forense de exfiltración bajo cumplimiento Ley 21.719",
 }
 
 # =========================================================================
@@ -671,6 +673,7 @@ DICCIONARIO_ACCIONES_AMIGABLES = {
     "inmunizar_ioc_flota": {"singular": "inmunizar el equipo bloqueando los indicadores del ataque", "plural": "vacunar preventivamente a toda la flota contra el ataque detectado"},
     "forzar_parches_os": {"singular": "instalar los parches críticos de seguridad de Windows", "plural": "forzar la actualización de parches de seguridad en la flota"},
     "bloquear_boveda": {"singular": "bloquear la bóveda y purgar claves de memoria", "plural": "bloquear las bóvedas de seguridad en la flota"},
+    "purgar_portapapeles": {"singular": "purgar el portapapeles y registrar auditoría forense DLP", "plural": "purgar portapapeles y reforzar políticas DLP en la flota"},
 }
 
 def obtener_accion_humana_segura(comando_raw: str, tipo_numero: str = "singular") -> str:
@@ -2434,6 +2437,21 @@ def api_diagnostico_pc():
                 tel_supervisor, 
                 tel_admin, 
                 COLECCION_TELEMETRIA, 
+                empresa_id
+            )
+
+        # Evaluación de fuga de información y DLP en Portapapeles (ZWC / Ley 21.719)
+        dlp_leaks = vault_info.get("dlp_incidentes_portapapeles", 0)
+        if dlp_leaks > 0:
+            detalle_dlp = vault_info.get("detalle_dlp") or f"Exfiltración de datos sensibles detectada ({dlp_leaks} incidentes en portapapeles)"
+            amenaza_dlp = f"Fuga DLP / Ley 21.719: {detalle_dlp}"
+            solicitar_aprobacion_hitl_whatsapp(
+                uid_equipo,
+                amenaza_dlp,
+                "purgar_portapapeles",
+                tel_supervisor,
+                tel_admin,
+                COLECCION_TELEMETRIA,
                 empresa_id
             )
         
