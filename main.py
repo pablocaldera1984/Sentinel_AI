@@ -1974,16 +1974,27 @@ def api_forense_remediacion_real():
                     "timestamp_resolucion_real": firestore.SERVER_TIMESTAMP,
                     "detalles_actuador": detalles
                 })
-                tkt_data = tkt_doc.to_dict()
+                tkt_data = tkt_doc.to_dict() or {}
                 tel_sup = tkt_data.get("telefono_supervisor")
-                if tel_sup and tel_sup != "DESCONOCIDO":
-                    solucion_amigable = DICCIONARIO_SOLUCIONES_AMIGABLES.get(tkt_data.get("amenaza", ""), detalles)
-                    msg = (
-                        f"✅ *MONITOREO: INCIDENTE SOLUCIONADO* ✅\n"
-                        f"Sentinel AI aplicó de forma autónoma las medidas de contención en el equipo de `{id_equipo}`. "
-                        f"{solucion_amigable} El estado de la flota opera seguro (Ticket: {tkt_id})."
-                    )
-                    enviar_texto_whatsapp(tel_sup, msg)
+                tel_adm = tkt_data.get("telefono_admin")
+
+                # Recolectar teléfonos válidos involucrados (supervisor y administrador que aprobó el escalamiento)
+                destinatarios = set()
+                for tel in [tel_sup, tel_adm]:
+                    if tel and str(tel).strip().upper() not in ["DESCONOCIDO", "NONE", ""]:
+                        destinatarios.add(str(tel).strip())
+
+                solucion_amigable = DICCIONARIO_SOLUCIONES_AMIGABLES.get(tkt_data.get("amenaza", ""), detalles)
+                msg = (
+                    f"✅ *MONITOREO: INCIDENTE SOLUCIONADO* ✅\n\n"
+                    f"Sentinel AI aplicó de forma autónoma las medidas de contención en el equipo `{id_equipo}`.\n\n"
+                    f"🛡️ *Detalle:* {solucion_amigable}\n"
+                    f"🎫 *Ticket Resuelto:* {tkt_id}\n\n"
+                    f"El estado de la flota opera seguro bajo control SOC."
+                )
+
+                for destino in destinatarios:
+                    enviar_texto_whatsapp(destino, msg)
 
         # Higiene de Base de Datos: Purgado de Desinstalados vs Cierre de Remediaciones
         if db and id_equipo != "DESCONOCIDO":
