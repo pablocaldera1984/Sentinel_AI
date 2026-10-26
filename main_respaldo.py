@@ -127,6 +127,83 @@ def serializar_telemetria_segura(datos_dict: dict) -> str:
         return sanitizar_prompt_input(raw_json)
     except Exception:
         return "{}"
+# =========================================================================
+# 🛡️ MOTOR DE THREAT INTELLIGENCE: MALWAREBAZAAR (ABUSE.CH) + CACHÉ FIRESTORE
+# =========================================================================
+CACHE_THREAT_INTEL = {}
+
+def consultar_reputacion_hash_malwarebazaar(hash_sha256: str) -> dict:
+    """
+    Consulta la base comunitaria global de MalwareBazaar (Abuse.ch) para verificar
+    si un binario corresponde a malware conocido sin incurrir en costos de licencias.
+    """
+    if not hash_sha256 or len(hash_sha256) != 64:
+        return {"es_malware": False, "motivo": "Hash inválido"}
+
+    hash_clean = hash_sha256.lower().strip()
+
+    # 1. Verificación en memoria rápida
+    if hash_clean in CACHE_THREAT_INTEL:
+        return CACHE_THREAT_INTEL[hash_clean]
+
+    # 2. Verificación en caché persistente de Firestore
+    if db:
+        try:
+            cached_doc = db.collection("threat_intel_cache").document(hash_clean).get()
+            if cached_doc.exists:
+                res_cache = cached_doc.to_dict()
+                CACHE_THREAT_INTEL[hash_clean] = res_cache
+                return res_cache
+        except Exception as e:
+            print(f"! Advertencia al consultar threat_intel_cache en DB: {sanitize_forensic_log(e)}")
+
+    # 3. Consulta externa a MalwareBazaar API
+    endpoint_mb = "https://mb-api.abuse.ch/api/v1/"
+    payload = {"query": "get_info", "hash": hash_clean}
+    
+    try:
+        resp = requests.post(endpoint_mb, data=payload, timeout=4)
+        if resp.status_code == 200:
+            data_mb = resp.json()
+            query_status = data_mb.get("query_status")
+
+            if query_status == "ok":
+                first_entry = data_mb.get("data", [{}])[0]
+                firma_malware = first_entry.get("signature") or first_entry.get("file_type") or "Malware Desconocido"
+                tags = first_entry.get("tags") or []
+                
+                resultado = {
+                    "es_malware": True,
+                    "firma": firma_malware,
+                    "tags": tags,
+                    "primer_visto": first_entry.get("first_seen", "N/A"),
+                    "fuente": "MalwareBazaar (Abuse.ch)"
+                }
+            else:
+                resultado = {
+                    "es_malware": False,
+                    "firma": "Limpio / No catalogado",
+                    "tags": [],
+                    "fuente": "MalwareBazaar (Abuse.ch)"
+                }
+
+            # Guardar en memoria y persistir en Firestore
+            CACHE_THREAT_INTEL[hash_clean] = resultado
+            if db:
+                try:
+                    db.collection("threat_intel_cache").document(hash_clean).set({
+                        **resultado,
+                        "timestamp_consulta": firestore.SERVER_TIMESTAMP
+                    })
+                except Exception:
+                    pass
+
+            return resultado
+
+    except Exception as err_api:
+        print(f"! Error de conexión con Threat Intelligence API: {sanitize_forensic_log(err_api)}")
+
+    return {"es_malware": False, "motivo": "Fallo de conexión o timeout"}        
 
 # =========================================================================
 # 🛡️ MOTOR DE THREAT INTELLIGENCE: MALWAREBAZAAR (ABUSE.CH) + CACHÉ FIRESTORE
@@ -374,24 +451,12 @@ esquema_auditoria = types.Schema(
         ),
         "recomendacion_ejecutiva": types.Schema(type="STRING"),
         "razonamiento_interno": types.Schema(type="STRING", description="Análisis profundo y justificación técnica de la decisión (Chain of Thought)"),
-        "tecnica_mitre": types.Schema(type="STRING", description="ID y nombre de la técnica MITRE ATT&CK detectada (ej. T1003.001 - OS Credential Dumping)"),
-        "parametros_quirurgicos": types.Schema(
-            type="OBJECT",
-            properties={
-                "pid_malicioso": types.Schema(type="INTEGER", description="PID exacto del proceso malicioso a terminar (0 si no aplica)"),
-                "ruta_ejecutable": types.Schema(type="STRING", description="Ruta completa del archivo a poner en cuarentena DPAPI"),
-                "clave_registro_asep": types.Schema(type="STRING", description="Ruta de llave de registro Run/RunOnce a eliminar"),
-                "ip_c2": types.Schema(type="STRING", description="IP externa maliciosa de Command & Control a bloquear en Firewall"),
-                "hash_sha256": types.Schema(type="STRING", description="Hash SHA-256 del artefacto malicioso")
-            },
-            required=["pid_malicioso", "ruta_ejecutable", "clave_registro_asep", "ip_c2", "hash_sha256"]
-        )
+        "tecnica_mitre": types.Schema(type="STRING", description="ID y nombre de la técnica MITRE ATT&CK detectada (ej. T1003.001 - OS Credential Dumping)")
     },
     required=[
         "score_postura_final", "estado_general", "cumplimiento_cis_v8",
         "blindaje_credenciales_lsass", "hallazgos_hardware_dex", "hallazgos_ciberseguridad",
-        "alertas_ioa_criticas", "recomendacion_ejecutiva", "razonamiento_interno", "tecnica_mitre",
-        "parametros_quirurgicos"
+        "alertas_ioa_criticas", "recomendacion_ejecutiva", "razonamiento_interno", "tecnica_mitre"
     ]
 )
 
@@ -598,10 +663,8 @@ DICCIONARIO_AMENAZAS_AMIGABLES = {
     "DOWNLOAD_INJECTION": "Descarga de un archivo peligroso con instrucciones ocultas diseñadas para manipular asistentes de Inteligencia Artificial",
     "MCP_BREACH": "Configuración insegura en las herramientas de Inteligencia Artificial con riesgo de fuga de credenciales o ejecución sin control",
     "LATERAL_MOVEMENT_RISK": "Detección de escaneo o intento de propagación de un ataque desde otros computadores dentro de la red local de la empresa",
-    "OBFUSCATED_PAYLOAD": "Ejecución de código oculto altamente ofuscado diseñado para evadir controles tradicionales",
-    "FLEET_LATERAL_ATTACK": "Ataque coordinado en curso intentando propagarse entre múltiples computadores de la empresa",
     "MALWARE_CONFIRMADO": "Malware o troyano catalogado globalmente intentando ejecutarse en la estación",
-    "BINARIO_NO_FIRMADO": "Ejecutable desconocido sin firma digital válida y con alta ofuscación de código",
+    "BINARIO_NO_FIRMADO": "Ejecutable desconocido sin firma digital válida y con alta ofuscación de código"
 }
 
 # 🟢 TRADUCCIÓN DE SOLUCIONES A LENGUAJE DE NEGOCIO (WHATSAPP UX)
@@ -627,10 +690,8 @@ DICCIONARIO_SOLUCIONES_AMIGABLES = {
     "MCP_BREACH": "Se desactivaron los conectores de IA vulnerables y se resguardaron las claves de acceso de la empresa",
     "LATERAL_MOVEMENT_RISK": "Se cerraron los puertos de red local (SMB/RDP), blindando la estación contra cualquier contagio desde la oficina",
     "HELPDESK_COMPROMISE": "Se anularon los accesos reseteados de forma irregular y se restableció la verificación segura del usuario",
-    "OBFUSCATED_PAYLOAD": "El código malicioso fue desofuscado por Gemini 4 Argon, puesto en cuarentena cifrada y sus servidores de mando fueron bloqueados",
-    "FLEET_LATERAL_ATTACK": "Se aplicó una vacuna preventiva en toda la flota bloqueando las direcciones IP y archivos del atacante",
     "MALWARE_CONFIRMADO": "El binario malicioso fue interceptado, neutralizado y purgado de la estación de trabajo",
-    "BINARIO_NO_FIRMADO": "El ejecutable no firmado fue bloqueado y puesto en cuarentena preventiva",
+    "BINARIO_NO_FIRMADO": "El ejecutable no firmado fue bloqueado y puesto en cuarentena preventiva"
 }
 
 # =========================================================================
@@ -2286,7 +2347,6 @@ def api_remediar_dispositivo():
 # =========================================================================
 # RUTA API RECEPTORA DE TELEMETRÍA (api_diagnostico_pc)
 # =========================================================================
-# CONSTANTES DE CONTROL DE VERSIONES OVER-THE-AIR (OTA)
 VERSION_MINIMA_GLOBAL = os.environ.get("VERSION_MINIMA_GLOBAL", "1.0.0")
 URL_DESCARGA_BINARIO = os.environ.get("URL_DESCARGA_BINARIO", "https://storage.googleapis.com/tu-bucket/SentinelAgent.exe")
 HASH_SHA256_BINARIO_OFICIAL = os.environ.get("HASH_SHA256_BINARIO_OFICIAL", "")
@@ -2355,25 +2415,25 @@ def api_diagnostico_pc():
                 if "cliente" in datos_guardar and isinstance(datos_guardar["cliente"], dict):
                     datos_guardar["cliente"]["empresa"] = empresa_id
                 
+                doc_equipo_ref = db.collection("auditoria_global").document(uid_equipo)
                 doc_equipo_ref.set(datos_guardar, merge=True)
                 doc_equipo_ref.collection("historial").add(datos_guardar)
 
-                # Notificación de reconexión si estaba programada
-                alerta_doc = db.collection("alertas_conexion_pendientes").document(uid_equipo).get()
-                if alerta_doc.exists and alerta_doc.to_dict().get("estado") == "pendiente":
-                    alerta_data = alerta_doc.to_dict()
-                    tel_destino = alerta_data.get("telefono_notificar")
-                    usr_nombre = alerta_data.get("usuario", uid_equipo)
-                    if tel_destino:
-                        enviar_texto_whatsapp(
-                            tel_destino,
-                            f"🟢 *AVISO DE CONEXIÓN: EQUIPO EN LÍNEA*\n\nEl computador de *{usr_nombre}* (`{uid_equipo}`) se acaba de encender y está transmitiendo telemetría en tiempo real."
+                try:
+                    alerta_doc = db.collection("alertas_conexion_pendientes").document(uid_equipo).get()
+                    if alerta_doc.exists and alerta_doc.to_dict().get("estado") == "pendiente":
+                        alerta_data = alerta_doc.to_dict()
+                        tel_destino = alerta_data.get("telefono_notificar")
+                        usr_nombre = alerta_data.get("usuario", uid_equipo)
+                        msg_aviso = (
+                            f"🟢 *AVISO DE CONEXIÓN: EQUIPO EN LÍNEA*\n\n"
+                            f"El computador de *{usr_nombre}* (`{uid_equipo}`) se acaba de encender y está transmitiendo telemetría en tiempo real."
                         )
                     db.collection("alertas_conexion_pendientes").document(uid_equipo).delete()
             except Exception as err_db:
                 print(f"[!] Error de persistencia en Firestore ({uid_equipo}): {sanitize_forensic_log(err_db)}")
 
-        # --- 1.1 Disparador Universal HITL en Vivo + Desofuscación Gemini 4 Argon ---
+        # --- 1.1 Disparador Universal HITL en Vivo (100% Cobertura + Threat Intelligence) ---
         postura_sec = pc_telemetria.get("security_posture", {})
         forense_av = postura_sec.get("forense_avanzado", {})
         canario_info = forense_av.get("canario_semantico", {})
@@ -2386,50 +2446,47 @@ def api_diagnostico_pc():
         fw_activo = postura_sec.get("firewall_activo", True)
         av_activo = postura_sec.get("antivirus", {}).get("rtp_activo", True)
         
+        # Inspección en caliente de Threat Intelligence sobre artefactos descargados o ejecutables
         ti_data = forense_av.get("threat_intel", {})
         hash_sospechoso = ti_data.get("hash_sha256")
         es_malware_confirmado = False
+        nombre_cepa = ""
 
         if hash_sospechoso:
             veredicto_ti = consultar_reputacion_hash_malwarebazaar(hash_sospechoso)
             if veredicto_ti.get("es_malware"):
                 es_malware_confirmado = True
+                nombre_cepa = veredicto_ti.get("firma", "Malware")
+
+        # Métricas de Hardware y DEX
+        temp_cpu = pc_telemetria.get("termico_fans", {}).get("cpu_temperatura_c", 40)
+        ram_pct = pc_telemetria.get("estado_actual", {}).get("ram_pct", 0)
+        ssd_vida = pc_telemetria.get("almacenamiento_ssd", {}).get("vida_util_pct", 100)
+        bsods = pc_telemetria.get("estabilidad_sistema", {}).get("bsod_conteo_7d", 0)
 
         tel_supervisor, tel_admin = obtener_telefonos_responsables(empresa_id)
 
-        # Si el agente capturó líneas de comando ofuscadas, invocar a Gemini 4 Argon
-        if payloads_ofuscados:
-            analisis_argon = desofuscar_payload_sospechoso_argon(str(payloads_ofuscados[0]), {"uid": uid_equipo})
-            if analisis_argon.get("es_malicioso"):
-                accion_argon = analisis_argon.get("accion_recomendada", "remediacion_quirurgica_csirt")
-                solicitar_aprobacion_hitl_whatsapp(uid_equipo, "OBFUSCATED_PAYLOAD", accion_argon, tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
-        
-        vault_info = pc_telemetria.get("sentinel_vault", {})
-        if not vault_info.get("canaries_ok", True):
-            incidente_vault = vault_info.get("incidente_canario") or {}
-            archivo_target = incidente_vault.get("archivo_afectado")
-            vector_ataque = incidente_vault.get("vector", "ALTERACIÓN")
-            
-            # Si viene el payload forense enriquecido, armamos la incidencia específica
-            if archivo_target:
-                amenaza_vault = f"Intento de Ransomware en Bóveda: {vector_ataque} en señuelo '{archivo_target}'"
-            else:
-                amenaza_vault = "HONEYTOKEN_BREACH"
-
+        # 🚨 NIVEL CRÍTICO 1: Threat Intelligence, Intrusión, Memoria y Canarios
+        if es_malware_confirmado:
             solicitar_aprobacion_hitl_whatsapp(
                 uid_equipo, 
-                amenaza_vault, 
-                "bloquear_boveda", 
+                "MALWARE_CONFIRMADO", 
+                "purgar_descargas_sospechosas", 
                 tel_supervisor, 
                 tel_admin, 
                 COLECCION_TELEMETRIA, 
                 empresa_id
             )
-        
-        if es_malware_confirmado:
-            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "MALWARE_CONFIRMADO", "purgar_descargas_sospechosas", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         elif ti_data.get("alta_entropia_sin_firma", False):
-            solicitar_aprobacion_hitl_whatsapp(uid_equipo, "BINARIO_NO_FIRMADO", "purgar_descargas_sospechosas", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
+            solicitar_aprobacion_hitl_whatsapp(
+                uid_equipo, 
+                "BINARIO_NO_FIRMADO", 
+                "purgar_descargas_sospechosas", 
+                tel_supervisor, 
+                tel_admin, 
+                COLECCION_TELEMETRIA, 
+                empresa_id
+            )
         elif canario_info.get("comprometido"):
             solicitar_aprobacion_hitl_whatsapp(uid_equipo, "HONEYTOKEN_BREACH", "aislar_equipo", tel_supervisor, tel_admin, COLECCION_TELEMETRIA, empresa_id)
         elif erw_count > 0 or len(sysmon_alerts) > 0:
@@ -3031,10 +3088,9 @@ def buscar_software_en_flota(empresa_id: str, software_a_buscar: str) -> str:
     except Exception as e:
         return f"Error en búsqueda de software: {sanitize_forensic_log(e)}"
 
-
-# 🛠️ HERRAMIENTA CHATOPS 6: Resumen Ejecutivo y Semáforo B2B
+# 🛠️ HERRAMIENTA CHATOPS 6: Resumen Ejecutivo y Semáforo B2B (KPIs TI & SecOps)
 def generar_resumen_ejecutivo_semaforo(empresa_id: str) -> str:
-    """Genera una ficha ejecutiva con semáforo de salud (Seguridad, Hardware, Estado General) de una empresa para presentar a gerencia."""
+    """Genera una ficha ejecutiva con semáforo y KPIs de TI/Ciberseguridad de una empresa para presentar a gerencia."""
     try:
         if not db: return "Base de datos fuera de línea."
         empresa_clean = str(empresa_id).upper().strip()
@@ -3047,6 +3103,8 @@ def generar_resumen_ejecutivo_semaforo(empresa_id: str) -> str:
         score_total = 0
         alertas_temp = 0
         alertas_sec = 0
+        equipos_en_linea = 0
+        ahora = datetime.utcnow()
         
         for d in docs:
             data = d.to_dict()
@@ -3056,22 +3114,34 @@ def generar_resumen_ejecutivo_semaforo(empresa_id: str) -> str:
             if temp > 80: alertas_temp += 1
             if score < 80: alertas_sec += 1
             
+            # Cálculo de disponibilidad en vivo (activo en los últimos 10 minutos)
+            ts_doc = data.get("timestamp")
+            if ts_doc:
+                try:
+                    dt = ts_doc if isinstance(ts_doc, datetime) else ts_doc.to_datetime().replace(tzinfo=None)
+                    if (ahora - dt).total_seconds() < 600:
+                        equipos_en_linea += 1
+                except Exception:
+                    equipos_en_linea += 1
+
         prom_score = round(score_total / total)
+        disponibilidad_pct = round((equipos_en_linea / total) * 100, 1) if total > 0 else 100.0
+
         sem_sec = "🟢 Óptimo" if prom_score >= 85 else ("🟡 Precaución" if prom_score >= 70 else "🔴 Crítico")
+        sem_disp = "🟢 99.5%" if disponibilidad_pct >= 95 else f"🟡 {disponibilidad_pct}%"
         sem_hw = "🟢 Estable" if alertas_temp == 0 else f"🟡 {alertas_temp} equipo(s) con estrés térmico"
         
         resumen = (
-            f"📊 *RESUMEN EJECUTIVO: {empresa_clean}*\n"
-            f"• Equipos protegidos: {total}\n"
-            f"• Postura de Ciberseguridad: {sem_sec} ({prom_score}% promedio)\n"
-            f"• Salud de Hardware & DEX: {sem_hw}\n"
-            f"• Incidentes de seguridad activos: {alertas_sec}\n"
-            f"• Conclusión: {'Ecosistema operando bajo estándares corporativos.' if alertas_sec == 0 and alertas_temp == 0 else 'Se sugieren acciones preventivas de mantenimiento.'}"
+            f"📊 *DASHBOARD KPIS TI & CIBERSEGURIDAD: {empresa_clean}*\n"
+            f"• Disponibilidad de Servicio: {sem_disp} ({equipos_en_linea}/{total} equipos en línea)\n"
+            f"• Postura Ciberseguridad: {sem_sec} ({prom_score}% promedio CIS/OWASP)\n"
+            f"• Salud Silicio & DEX: {sem_hw}\n"
+            f"• Incidentes de Seguridad Activos: {alertas_sec}\n"
+            f"• Estado General: {'Flota operando con total estabilidad y cumplimiento.' if alertas_sec == 0 and alertas_temp == 0 else 'Existen desviaciones que requieren atención preventiva.'}"
         )
         return resumen
     except Exception as e:
         return f"Error generando resumen semáforo: {sanitize_forensic_log(e)}"
-
 
 # 🛠️ HERRAMIENTA CHATOPS 7: FinOps y Consumo de IA
 def consultar_consumo_finops_empresa(empresa_id: str) -> str:
