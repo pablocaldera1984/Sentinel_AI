@@ -1993,15 +1993,24 @@ def api_soc_bitacora():
                 doc_id = registrar_actuacion_soc(uid, emp, usr, orig, acc, gat, est)
                 ids_registrados.append(doc_id)
 
-                # Si es una reversión ordenada desde portal_admin, encolar orden al equipo
+                # Si es una reversión ordenada desde portal_admin, encolar orden específica al equipo
                 if ev.get("encolar_reversion"):
-                    comando_rev = ev.get("comando_reversion", "restaurar_conectividad_normal")
-                    db.collection(COLECCION_TELEMETRIA).document(uid).set({
+                    mapa_reversion = {
+                        "AISLAMIENTO_RED_WIFI": "repair_network",
+                        "AISLAR_EQUIPO": "repair_network",
+                        "BLOQUEO_BOVEDA": "desbloquear_boveda",
+                        "BLOQUEAR_BOVEDA": "desbloquear_boveda",
+                        "USB_PORT_LOCKDOWN": "usb_port_unlock",
+                        "RESTAURAR_HOSTS": "restaurar_hosts"
+                    }
+                    acc_orig = str(ev.get("accion_original") or acc.replace("REVERSION_", "")).upper()
+                    comando_rev = mapa_reversion.get(acc_orig, ev.get("comando_reversion", "repair_network"))
+                    db.collection("auditoria_global").document(uid).set({
                         "orden_c2_pendiente": {
                             "comando": comando_rev,
                             "origen": "ADMIN_PORTAL_ROLLBACK",
                             "timestamp": int(time.time()),
-                            "motivo": f"Reversión manual de {acc} por Administrador"
+                            "motivo": f"Reversión manual de {acc_orig} autorizada por Administrador"
                         }
                     }, merge=True)
 
@@ -2473,6 +2482,27 @@ def api_diagnostico_pc():
                     db.collection("alertas_conexion_pendientes").document(uid_equipo).delete()
             except Exception as err_db:
                 print(f"[!] Error de persistencia en Firestore ({uid_equipo}): {sanitize_forensic_log(err_db)}")
+
+# --- 1.05 INTERCEPTOR PRIORITARIO DE REVERSIÓN / ROLLBACK DESDE PORTAL ADMIN ---
+        orden_rollback = doc_previo_dict.get("orden_c2_pendiente")
+        if isinstance(orden_rollback, dict) and orden_rollback.get("comando"):
+            cmd_rollback = str(orden_rollback.get("comando"))
+            motivo_rollback = str(orden_rollback.get("motivo", "Reversión manual ordenada por Master Admin"))
+            try:
+                if db and uid_equipo != "DESCONOCIDO":
+                    db.collection("auditoria_global").document(uid_equipo).update({
+                        "orden_c2_pendiente": firestore.DELETE_FIELD
+                    })
+            except Exception as e_clean:
+                print(f"[!] Aviso limpiando orden_c2_pendiente: {e_clean}")
+
+            return jsonify({
+                "status": "success",
+                "diagnostico": f"ORDEN PRIORITARIA DE REPOSICIÓN C2: {motivo_rollback}.",
+                "mini_herramienta": cmd_rollback,
+                "parametros_accion": {"modo": "rollback_forzado_admin"},
+                "token_autorizador_oob": generar_token_oob_criptografico(uid_equipo, cmd_rollback)
+            }), 200
 
         # --- 1.1 Disparador Universal HITL en Vivo + Desofuscación Gemini 4 Argon ---
         postura_sec = pc_telemetria.get("security_posture", {})
