@@ -2080,16 +2080,23 @@ def api_soc_evaluar_vulnerabilidad():
         """
 
         analisis_ia = None
-        if client_genai:
-            try:
-                resp_ia = client_genai.models.generate_content(
+        try:
+            motor_ia = globals().get("client_genai") or globals().get("genai_client") or globals().get("client")
+            if motor_ia and hasattr(motor_ia, "models"):
+                resp_ia = motor_ia.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=prompt_zero_day,
                     config={"response_mime_type": "application/json"}
                 )
                 analisis_ia = json.loads(resp_ia.text)
-            except Exception as e_ia:
-                print(f"[!] Aviso fallback Zero-Day IA: {e_ia}")
+            elif "GenerativeModel" in str(globals()) or globals().get("model"):
+                m_obj = globals().get("model")
+                if m_obj and hasattr(m_obj, "generate_content"):
+                    resp_ia = m_obj.generate_content(prompt_zero_day)
+                    txt_clean = resp_ia.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                    analisis_ia = json.loads(txt_clean)
+        except Exception as e_ia:
+            print(f"[!] Aviso fallback Zero-Day IA: {e_ia}")
 
         if not analisis_ia:
             analisis_ia = {
