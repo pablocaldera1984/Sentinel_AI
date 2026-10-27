@@ -2014,6 +2014,14 @@ def api_soc_bitacora():
                         }
                     }, merge=True)
 
+                    # Marcar los bloqueos activos previos de ese equipo como REVERTIDO_OK
+                    try:
+                        prev_activos = db.collection("bitacora_actuaciones_soc").where("id_equipo", "==", uid).where("estado_actual", "==", "ACTIVO").stream()
+                        for doc_act in prev_activos:
+                            doc_act.reference.update({"estado_actual": "REVERTIDO_OK"})
+                    except Exception as e_upd:
+                        print(f"[!] Aviso actualizando estado previo en bitacora: {e_upd}")
+
             return jsonify({"status": "success", "registrados": len(ids_registrados)}), 200
 
         # Método GET: devolver últimos 60 registros ordenados por ts_epoch
@@ -2128,10 +2136,11 @@ def api_soc_evaluar_vulnerabilidad():
             hijos = list(set((actual.get("hijos_prohibidos_webshell") or []) + (vac.get("hijos_prohibidos_nuevos") or [])))
             rutas_http = list(set((actual.get("rutas_recon_http") or []) + (vac.get("rutas_recon_http") or [])))
 
+            fecha_utc_str = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
             historial = actual.get("historial_vacunas") or []
             historial.insert(0, {
                 "amenaza": amenaza_query,
-                "fecha_utc": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "fecha_utc": fecha_utc_str,
                 "patrones_agregados": vac.get("patrones_cmdline_nuevos", [])
             })
 
@@ -2144,18 +2153,16 @@ def api_soc_evaluar_vulnerabilidad():
                 "updated_at": firestore.SERVER_TIMESTAMP
             }, merge=True)
 
-            # Registrar el despliegue de la vacuna en la Bitácora SOC
-            db.collection("bitacora_actuaciones_soc").add({
-                "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-                "timestamp_epoch": int(time.time()),
-                "id_equipo": "TODA_LA_FLOTA",
-                "empresa": "GLOBAL365",
-                "usuario": "Pablo Caldera (Master Admin)",
-                "origen_decision": "ADMIN_ZERO_DAY_SHIELD",
-                "accion_ejecutada": f"VACUNA_ZERO_DAY_{amenaza_query.upper()[:18]}",
-                "gatillo_forense": f"Inmunización en caliente desplegada contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas de comando y bloqueo de Webshell activos.",
-                "estado_actual": "COMPLETADO"
-            })
+            # Registrar el despliegue de la vacuna en la Bitácora SOC usando la función oficial
+            registrar_actuacion_soc(
+                id_equipo="TODA_LA_FLOTA",
+                empresa="GLOBAL365",
+                usuario="Pablo Caldera (Master Admin)",
+                origen_decision="ADMIN_ZERO_DAY_SHIELD",
+                accion_ejecutada=f"VACUNA_ZERO_DAY_{amenaza_query.upper()[:18]}",
+                gatillo_forense=f"Inmunización en caliente desplegada contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas de comando y bloqueo de Webshell activos.",
+                estado_actual="COMPLETADO"
+            )
 
         return jsonify({
             "status": "success",
