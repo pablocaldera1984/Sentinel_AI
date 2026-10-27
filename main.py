@@ -1943,6 +1943,84 @@ def api_simular_infraestructura():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # =========================================================================
+# =========================================================================
+# 🛡️ MOTOR CENTRALIZADO DE OBSERVABILIDAD Y BITÁCORA DE ACTUACIONES SOC
+# =========================================================================
+def registrar_actuacion_soc(id_equipo, empresa, usuario, origen, accion, gatillo, estado="ACTIVO"):
+    try:
+        if not db:
+            return None
+        ahora = datetime.now(timezone.utc)
+        doc_data = {
+            "timestamp": ahora.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "ts_epoch": int(ahora.timestamp()),
+            "id_equipo": str(id_equipo or "DESCONOCIDO").upper(),
+            "empresa": str(empresa or "GLOBAL365").upper(),
+            "usuario": str(usuario or "Sistema"),
+            "origen_decision": str(origen),    # AUTONOMO_AGENT | HITL_WHATSAPP | C2_CLOUD | ADMIN_PORTAL
+            "accion_ejecutada": str(accion),   # AISLAMIENTO_RED_WIFI | BLOQUEO_BOVEDA | PURGA_PORTAPAPELES | etc.
+            "gatillo_forense": str(gatillo),   # Explicación clara de por qué ocurrió
+            "estado_actual": str(estado)       # ACTIVO | COMPLETADO | REVERTIDO_POR_ADMIN
+        }
+        _, ref = db.collection("bitacora_actuaciones_soc").add(doc_data)
+        return ref.id
+    except Exception as e:
+        print(f"[ERROR BITACORA SOC] {e}")
+        return None
+
+@app.route("/api/soc/bitacora", methods=["GET", "POST", "OPTIONS"])
+@limiter.exempt
+def api_soc_bitacora():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        if not db:
+            return jsonify({"status": "error", "message": "Firestore desconectado"}), 503
+
+        if request.method == "POST":
+            datos = request.get_json(silent=True) or {}
+            # Soportar lote de cola offline o evento único pre-actuación
+            eventos = datos.get("eventos") if isinstance(datos.get("eventos"), list) else [datos]
+            ids_registrados = []
+            for ev in eventos:
+                uid = str(ev.get("id_equipo") or ev.get("idEquipo") or "DESCONOCIDO").upper()
+                emp = str(ev.get("empresa") or "GLOBAL365").upper()
+                usr = str(ev.get("usuario") or "Agente Local")
+                orig = str(ev.get("origen_decision") or "AUTONOMO_AGENT")
+                acc = str(ev.get("accion_ejecutada") or "CONTENCION_AUTOMATICA")
+                gat = str(ev.get("gatillo_forense") or "Política preventiva disparada en el endpoint")
+                est = str(ev.get("estado_actual") or "ACTIVO")
+                doc_id = registrar_actuacion_soc(uid, emp, usr, orig, acc, gat, est)
+                ids_registrados.append(doc_id)
+
+                # Si es una reversión ordenada desde portal_admin, encolar orden al equipo
+                if ev.get("encolar_reversion"):
+                    comando_rev = ev.get("comando_reversion", "restaurar_conectividad_normal")
+                    db.collection(COLECCION_TELEMETRIA).document(uid).set({
+                        "orden_c2_pendiente": {
+                            "comando": comando_rev,
+                            "origen": "ADMIN_PORTAL_ROLLBACK",
+                            "timestamp": int(time.time()),
+                            "motivo": f"Reversión manual de {acc} por Administrador"
+                        }
+                    }, merge=True)
+
+            return jsonify({"status": "success", "registrados": len(ids_registrados)}), 200
+
+        # Método GET: devolver últimos 60 registros ordenados por ts_epoch
+        empresa_filtro = request.args.get("empresa", "").strip().upper()
+        docs = db.collection("bitacora_actuaciones_soc").order_by("ts_epoch", direction=firestore.Query.DESCENDING).limit(60).stream()
+        lista = []
+        for d in docs:
+            item = d.to_dict()
+            item["id_doc"] = d.id
+            if not empresa_filtro or empresa_filtro == "TODAS" or item.get("empresa") == empresa_filtro:
+                lista.append(item)
+        return jsonify({"status": "success", "bitacora": lista}), 200
+    except Exception as e:
+        print(f"[ERROR API BITACORA] {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # ENDPOINT DE REPORTE DE REMEDIACIÓN REAL (NOTIFICACIÓN CIERRE WHATSAPP)
 # =========================================================================
 @app.route('/api/forense/remediacion', methods=['POST'])
@@ -1951,6 +2029,15 @@ def api_forense_remediacion_real():
     try:
         datos = request.get_json(silent=True) or {}
         id_equipo = str(datos.get("idEquipo", "DESCONOCIDO")).upper()
+        registrar_actuacion_soc(
+            id_equipo=id_equipo,
+            empresa=datos.get("empresa", "GLOBAL365"),
+            usuario=datos.get("usuario", "Endpoint"),
+            origen=datos.get("origen", "C2_CLOUD / HITL"),
+            accion=datos.get("comandoEjecutado") or datos.get("amenaza") or "REMEDIACION_EJECUTADA",
+            gatillo=datos.get("detalles") or "Confirmación de contención aplicada por el agente",
+            estado="COMPLETADO"
+        )
         
         # Validación criptográfica por token de máquina o token global
         if not validar_autenticacion_agente(request, id_equipo):
