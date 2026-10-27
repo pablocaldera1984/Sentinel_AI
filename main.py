@@ -2153,15 +2153,15 @@ def api_soc_evaluar_vulnerabilidad():
                 "updated_at": firestore.SERVER_TIMESTAMP
             }, merge=True)
 
-            # Registrar el despliegue de la vacuna en la Bitácora SOC usando la función oficial
+            # Registrar el despliegue de la vacuna en la Bitácora SOC usando argumentos posicionales
             registrar_actuacion_soc(
-                id_equipo="TODA_LA_FLOTA",
-                empresa="GLOBAL365",
-                usuario="Pablo Caldera (Master Admin)",
-                origen_decision="ADMIN_ZERO_DAY_SHIELD",
-                accion_ejecutada=f"VACUNA_ZERO_DAY_{amenaza_query.upper()[:18]}",
-                gatillo_forense=f"Inmunización en caliente desplegada contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas de comando y bloqueo de Webshell activos.",
-                estado_actual="COMPLETADO"
+                "TODA_LA_FLOTA",
+                "GLOBAL365",
+                "Pablo Caldera (Master Admin)",
+                "ADMIN_ZERO_DAY_SHIELD",
+                f"VACUNA_ZERO_DAY_{amenaza_query.upper()[:18]}",
+                f"Inmunización en caliente desplegada contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas de comando y bloqueo de Webshell activos.",
+                "COMPLETADO"
             )
 
         return jsonify({
