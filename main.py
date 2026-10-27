@@ -2038,52 +2038,43 @@ def api_soc_bitacora():
         print(f"[ERROR API BITACORA] {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route("/api/soc/evaluar-vulnerabilidad", methods=["POST", "GET"])
+@app.route("/api/soc/evaluar-vulnerabilidad", methods=["POST", "OPTIONS"])
+@limiter.exempt
 def api_soc_evaluar_vulnerabilidad():
-    """Evalúa si una vulnerabilidad emergente (ej. PHP2Shell) está cubierta y despliega vacunas en caliente a la flota."""
+    if request.method == "OPTIONS":
+        return jsonify({"status": "preflight_ok"}), 200
     try:
-        if request.method == "GET":
-            reglas_doc = db.collection("config_global_soc").document("reglas_zero_day").get() if db else None
-            reglas_data = reglas_doc.to_dict() if (reglas_doc and reglas_doc.exists) else {
-                "patrones_cmdline": ["eval(base64_decode", "shell_exec(", "php://input", "auto_prepend_file"],
-                "padres_web_vigilados": ["php.exe", "php-cgi.exe", "w3wp.exe", "httpd.exe", "nginx.exe"],
-                "hijos_prohibidos_webshell": ["cmd.exe", "powershell.exe", "whoami.exe", "certutil.exe"],
-                "historial_vacunas": []
-            }
-            return jsonify({"status": "success", "reglas_activas": reglas_data}), 200
-
-        body = request.get_json(silent=True) or {}
-        amenaza_query = str(body.get("vulnerabilidad", "")).strip()
-        aplicar_vacuna = bool(body.get("aplicar_vacuna", False))
-
-        if not amenaza_query:
-            return jsonify({"status": "error", "message": "Ingresa el nombre de la vulnerabilidad o CVE."}), 400
+        datos = request.get_json(silent=True) or {}
+        amenaza_query = str(datos.get("vulnerabilidad") or "PHP2Shell").strip()
+        aplicar_vacuna = bool(datos.get("aplicar_vacuna", False))
 
         prompt_zero_day = f"""
-        Actúa como Director de Inteligencia de Amenazas CSIRT para el ecosistema Global365 Sentinel (compuesto por:
-        1. SentinelRecon: Escáner externo EASM/DRPS de dominios, puertos, cabeceras HTTP, CISA KEV y subdominios.
-        2. SentinelAgent: EDR en Windows con Watchdog de procesos padre-hijo, inspección de línea de comandos, entropía de binarios y firewall C2.
-        3. SentinelVault: Enclave Zero-Trust XChaCha20-Poly1305 con Honeydocs canarios anti-ransomware y DLP).
-
-        El Administrador consulta por la siguiente vulnerabilidad o amenaza emergente: "{amenaza_query}".
+        Eres el Director de Inteligencia de Amenazas CSIRT de Global365 Sentinel AI.
+        Analiza la siguiente vulnerabilidad o amenaza emergente: "{amenaza_query}".
+        Determina cómo la cubren nuestros 3 módulos (SentinelRecon, SentinelAgent, SentinelVault),
+        genera las reglas de vacunación en caliente (Virtual Patching) y decide estrictamente si esta amenaza
+        requiere además descargar parches oficiales del sistema operativo Windows (requiere_parche_os)
+        o actualizar firmas de antivirus Microsoft Defender (requiere_update_av).
 
         Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
         {{
-            "nombre_amenaza": "{amenaza_query}",
-            "porcentaje_cobertura_actual": 85,
-            "estado_cobertura": "CUBIERTO_CON_VACUNA_DINAMICA",
-            "analisis_por_modulo": {{
-                "sentinel_recon": "Explicación de cómo lo detecta en el perímetro web/red o qué cabecera/ruta vigila.",
-                "sentinel_agent": "Explicación de cómo el Watchdog Padre-Hijo y filtro de comandos bloquea la post-explotación.",
-                "sentinel_vault": "Explicación de cómo la bóveda y los Honeydocs impiden el robo o cifrado de datos."
-            }},
-            "brecha_detectada": "Qué vector específico quedaba abierto antes de inyectar esta regla dinámica.",
-            "vacuna_generada": {{
-                "patrones_cmdline_nuevos": ["patron1", "patron2"],
-                "padres_vigilados_nuevos": ["proceso_padre.exe"],
-                "hijos_prohibidos_nuevos": ["cmd.exe", "powershell.exe"],
-                "rutas_recon_http": ["/ruta-vulnerable.php", "/admin/config.php"]
-            }}
+          "nombre_amenaza": "{amenaza_query}",
+          "porcentaje_cobertura_actual": 90,
+          "estado_cobertura": "PROTEGIDO_CON_REGLA_PADRE_HIJO",
+          "analisis_por_modulo": {{
+            "sentinel_recon": "Explicación breve de cómo lo detecta en el perímetro...",
+            "sentinel_agent": "Explicación breve de cómo el Watchdog lo bloquea en el endpoint...",
+            "sentinel_vault": "Explicación breve de cómo protege los datos cifrados..."
+          }},
+          "vacuna_generada": {{
+            "patrones_cmdline_nuevos": ["patron1", "patron2"],
+            "padres_vigilados_nuevos": ["proceso_padre.exe"],
+            "hijos_prohibidos_nuevos": ["cmd.exe", "powershell.exe"],
+            "rutas_recon_http": ["/ruta_vulnerable"],
+            "requiere_parche_os": false,
+            "requiere_update_av": true,
+            "justificacion_parche": "Explicación breve de por qué sí o por qué no requiere Windows Update o firmas AV."
+          }}
         }}
         """
 
@@ -2107,6 +2098,9 @@ def api_soc_evaluar_vulnerabilidad():
             print(f"[!] Aviso fallback Zero-Day IA: {e_ia}")
 
         if not analisis_ia:
+            q_low = amenaza_query.lower()
+            # Determinar inteligentemente en el fallback si es una vulnerabilidad de Windows OS o de Malware/Webshell
+            es_vuln_windows = any(k in q_low for k in ["windows", "smb", "rdp", "kernel", "ntlm", "spooler", "exchange", "iis", "cve-"])
             analisis_ia = {
                 "nombre_amenaza": amenaza_query,
                 "porcentaje_cobertura_actual": 90,
@@ -2116,15 +2110,22 @@ def api_soc_evaluar_vulnerabilidad():
                     "sentinel_agent": "El Watchdog bloquea en <3s cualquier ejecución de cmd.exe o powershell.exe originada desde procesos web (php-cgi.exe, w3wp.exe, httpd.exe).",
                     "sentinel_vault": "Protege los activos críticos en contenedores cifrados .sntvlt inmunes a exfiltración por webshell."
                 },
-                "brecha_detectada": "Inyección directa de comandos vía intérpretes web (Webshell / RCE).",
                 "vacuna_generada": {
                     "patrones_cmdline_nuevos": ["eval(base64_decode", "shell_exec(", "php://input", "-encodedcommand"],
                     "padres_vigilados_nuevos": ["php.exe", "php-cgi.exe", "w3wp.exe", "httpd.exe", "nginx.exe"],
-                    "hijos_prohibidos_nuevos": ["cmd.exe", "powershell.exe", "whoami.exe", "certutil.exe"],
-                    "rutas_recon_http": ["/vendor/phpunit", "/index.php?s=/Index/\\think\\app/invokefunction"]
+                    "hijos_prohibidos_nuevos": ["cmd.exe", "powershell.exe", "pwsh.exe", "whoami.exe", "net.exe", "certutil.exe"],
+                    "rutas_recon_http": ["/vendor/phpunit", "/index.php?s=/index/think"],
+                    "requiere_parche_os": es_vuln_windows,
+                    "requiere_update_av": True,
+                    "justificacion_parche": (
+                        "Amenaza vinculada a componente de sistema/CVE: se recomienda parcheo OS + firmas Defender."
+                        if es_vuln_windows else
+                        "Amenaza de capa de aplicación/Webshell: requiere firmas AV Defender + Virtual Patching en memoria (No requiere Windows Update)."
+                    )
                 }
             }
 
+        acciones_c2_encoladas = []
         if aplicar_vacuna and db:
             vac = analisis_ia.get("vacuna_generada", {})
             doc_ref = db.collection("config_global_soc").document("reglas_zero_day")
@@ -2136,12 +2137,17 @@ def api_soc_evaluar_vulnerabilidad():
             hijos = list(set((actual.get("hijos_prohibidos_webshell") or []) + (vac.get("hijos_prohibidos_nuevos") or [])))
             rutas_http = list(set((actual.get("rutas_recon_http") or []) + (vac.get("rutas_recon_http") or [])))
 
+            req_os = bool(vac.get("requiere_parche_os", False))
+            req_av = bool(vac.get("requiere_update_av", False))
+
             fecha_utc_str = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
             historial = actual.get("historial_vacunas") or []
             historial.insert(0, {
                 "amenaza": amenaza_query,
                 "fecha_utc": fecha_utc_str,
-                "patrones_agregados": vac.get("patrones_cmdline_nuevos", [])
+                "patrones_agregados": vac.get("patrones_cmdline_nuevos", []),
+                "requiere_parche_os": req_os,
+                "requiere_update_av": req_av
             })
 
             doc_ref.set({
@@ -2153,6 +2159,42 @@ def api_soc_evaluar_vulnerabilidad():
                 "updated_at": firestore.SERVER_TIMESTAMP
             }, merge=True)
 
+            # Si y solo si la vulnerabilidad requiere parche de Windows o actualización de firmas AV, encolarlo a los equipos activos
+            comando_remediacion_fisica = None
+            if req_os:
+                comando_remediacion_fisica = "forzar_parches_os"
+                acciones_c2_encoladas.append("Windows Update (UsoClient)")
+            elif req_av:
+                comando_remediacion_fisica = "forzar_update_av"
+                acciones_c2_encoladas.append("Firmas Microsoft Defender (MpCmdRun)")
+
+            equipos_notificados = 0
+            if comando_remediacion_fisica:
+                try:
+                    equipos_snap = db.collection("auditoria_global").stream()
+                    for eq_doc in equipos_snap:
+                        eq_dict = eq_doc.to_dict() or {}
+                        # Respetar si el equipo tiene una orden de desbloqueo prioritaria sin ejecutar
+                        orden_actual = eq_dict.get("orden_c2_pendiente")
+                        if not (isinstance(orden_actual, dict) and orden_actual.get("origen") == "ADMIN_PORTAL_ROLLBACK"):
+                            eq_doc.reference.set({
+                                "orden_c2_pendiente": {
+                                    "comando": comando_remediacion_fisica,
+                                    "origen": "ZERO_DAY_AUTO_PATCH",
+                                    "timestamp": int(time.time()),
+                                    "motivo": f"Mitigación física automática para vulnerabilidad '{amenaza_query}'"
+                                }
+                            }, merge=True)
+                            equipos_notificados += 1
+                except Exception as e_disp:
+                    print(f"[!] Aviso despachando orden de parcheo a la flota: {e_disp}")
+
+            detalle_parcheo = (
+                f" + Orden C2 '{comando_remediacion_fisica}' enviada a {equipos_notificados} endpoints."
+                if comando_remediacion_fisica else
+                " (Cubierto 100% vía Virtual Patching en memoria sin requerir descarga de parches OS)."
+            )
+
             # Registrar el despliegue de la vacuna en la Bitácora SOC usando argumentos posicionales
             registrar_actuacion_soc(
                 "TODA_LA_FLOTA",
@@ -2160,14 +2202,15 @@ def api_soc_evaluar_vulnerabilidad():
                 "Pablo Caldera (Master Admin)",
                 "ADMIN_ZERO_DAY_SHIELD",
                 f"VACUNA_ZERO_DAY_{amenaza_query.upper()[:18]}",
-                f"Inmunización en caliente desplegada contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas de comando y bloqueo de Webshell activos.",
+                f"Inmunización en caliente contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas inyectadas{detalle_parcheo}",
                 "COMPLETADO"
             )
 
         return jsonify({
             "status": "success",
             "analisis": analisis_ia,
-            "vacuna_desplegada": aplicar_vacuna
+            "vacuna_desplegada": aplicar_vacuna,
+            "acciones_c2_encoladas": acciones_c2_encoladas
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
