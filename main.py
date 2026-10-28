@@ -1950,10 +1950,9 @@ def registrar_actuacion_soc(id_equipo, empresa, usuario, origen, accion, gatillo
     try:
         if not db:
             return None
-        ahora = datetime.now(timezone.utc)
         doc_data = {
-            "timestamp": ahora.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "ts_epoch": int(ahora.timestamp()),
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "ts_epoch": int(time.time()),
             "id_equipo": str(id_equipo or "DESCONOCIDO").upper(),
             "empresa": str(empresa or "GLOBAL365").upper(),
             "usuario": str(usuario or "Sistema"),
