@@ -2046,6 +2046,7 @@ def api_soc_evaluar_vulnerabilidad():
         datos = request.get_json(silent=True) or {}
         amenaza_query = str(datos.get("vulnerabilidad") or "PHP2Shell").strip()
         aplicar_vacuna = bool(datos.get("aplicar_vacuna", False))
+        empresa_objetivo = str(datos.get("empresa_objetivo") or "TODAS").strip().upper()
 
         prompt_zero_day = f"""
         Eres el Director de Inteligencia de Amenazas CSIRT de Global365 Sentinel AI.
@@ -2098,7 +2099,6 @@ def api_soc_evaluar_vulnerabilidad():
 
         if not analisis_ia:
             q_low = amenaza_query.lower()
-            # Determinar inteligentemente en el fallback si es una vulnerabilidad de Windows OS o de Malware/Webshell
             es_vuln_windows = any(k in q_low for k in ["windows", "smb", "rdp", "kernel", "ntlm", "spooler", "exchange", "iis", "cve-"])
             analisis_ia = {
                 "nombre_amenaza": amenaza_query,
@@ -2125,6 +2125,7 @@ def api_soc_evaluar_vulnerabilidad():
             }
 
         acciones_c2_encoladas = []
+        empresas_afectadas_str = empresa_objetivo
         if aplicar_vacuna and db:
             vac = analisis_ia.get("vacuna_generada", {})
             doc_ref = db.collection("config_global_soc").document("reglas_zero_day")
@@ -2143,6 +2144,7 @@ def api_soc_evaluar_vulnerabilidad():
             historial = actual.get("historial_vacunas") or []
             historial.insert(0, {
                 "amenaza": amenaza_query,
+                "empresa_objetivo": empresa_objetivo,
                 "fecha_utc": fecha_utc_str,
                 "patrones_agregados": vac.get("patrones_cmdline_nuevos", []),
                 "requiere_parche_os": req_os,
@@ -2158,7 +2160,6 @@ def api_soc_evaluar_vulnerabilidad():
                 "updated_at": firestore.SERVER_TIMESTAMP
             }, merge=True)
 
-            # Si y solo si la vulnerabilidad requiere parche de Windows o actualización de firmas AV, encolarlo a los equipos activos
             comando_remediacion_fisica = None
             if req_os:
                 comando_remediacion_fisica = "forzar_parches_os"
@@ -2168,12 +2169,16 @@ def api_soc_evaluar_vulnerabilidad():
                 acciones_c2_encoladas.append("Firmas Microsoft Defender (MpCmdRun)")
 
             equipos_notificados = 0
-            if comando_remediacion_fisica:
-                try:
-                    equipos_snap = db.collection("auditoria_global").stream()
-                    for eq_doc in equipos_snap:
-                        eq_dict = eq_doc.to_dict() or {}
-                        # Respetar si el equipo tiene una orden de desbloqueo prioritaria sin ejecutar
+            empresas_detectadas = set()
+            try:
+                equipos_snap = db.collection("auditoria_global").stream()
+                for eq_doc in equipos_snap:
+                    eq_dict = eq_doc.to_dict() or {}
+                    emp_eq = str(eq_dict.get("empresa_upper") or eq_dict.get("cliente", {}).get("empresa") or "GLOBAL365").strip().upper()
+                    if empresa_objetivo != "TODAS" and emp_eq != empresa_objetivo:
+                        continue
+                    empresas_detectadas.add(emp_eq)
+                    if comando_remediacion_fisica:
                         orden_actual = eq_dict.get("orden_c2_pendiente")
                         if not (isinstance(orden_actual, dict) and orden_actual.get("origen") == "ADMIN_PORTAL_ROLLBACK"):
                             eq_doc.reference.set({
@@ -2185,19 +2190,22 @@ def api_soc_evaluar_vulnerabilidad():
                                 }
                             }, merge=True)
                             equipos_notificados += 1
-                except Exception as e_disp:
-                    print(f"[!] Aviso despachando orden de parcheo a la flota: {e_disp}")
+            except Exception as e_disp:
+                print(f"[!] Aviso despachando orden de parcheo a la flota: {e_disp}")
+
+            if empresas_detectadas:
+                empresas_afectadas_str = ", ".join(sorted(empresas_detectadas))
 
             detalle_parcheo = (
-                f" + Orden C2 '{comando_remediacion_fisica}' enviada a {equipos_notificados} endpoints."
+                f" + Orden C2 '{comando_remediacion_fisica}' enviada a {equipos_notificados} endpoints ({empresas_afectadas_str})."
                 if comando_remediacion_fisica else
-                " (Cubierto 100% vía Virtual Patching en memoria sin requerir descarga de parches OS)."
+                f" (Cubierto 100% vía Virtual Patching en memoria para {empresas_afectadas_str})."
             )
 
-            # Registrar el despliegue de la vacuna en la Bitácora SOC usando argumentos posicionales
+            etiqueta_flota = "TODA_LA_FLOTA" if empresa_objetivo == "TODAS" else f"FLOTA_{empresa_objetivo}"
             registrar_actuacion_soc(
-                "TODA_LA_FLOTA",
-                "GLOBAL365",
+                etiqueta_flota,
+                empresas_afectadas_str,
                 "Pablo Caldera (Master Admin)",
                 "ADMIN_ZERO_DAY_SHIELD",
                 f"VACUNA_ZERO_DAY_{amenaza_query.upper()[:18]}",
@@ -2209,7 +2217,8 @@ def api_soc_evaluar_vulnerabilidad():
             "status": "success",
             "analisis": analisis_ia,
             "vacuna_desplegada": aplicar_vacuna,
-            "acciones_c2_encoladas": acciones_c2_encoladas
+            "acciones_c2_encoladas": acciones_c2_encoladas,
+            "empresas_afectadas": empresas_afectadas_str
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
