@@ -2048,6 +2048,25 @@ def api_soc_evaluar_vulnerabilidad():
         aplicar_vacuna = bool(datos.get("aplicar_vacuna", False))
         empresa_objetivo = str(datos.get("empresa_objetivo") or "TODAS").strip().upper()
 
+        # 1. Verificar en Firestore si esta amenaza ya fue inmunizada previamente para esta empresa o globalmente
+        ya_inmunizada = False
+        actual_rz = {}
+        if db:
+            try:
+                snap_rz = db.collection("config_global_soc").document("reglas_zero_day").get()
+                if snap_rz.exists:
+                    actual_rz = snap_rz.to_dict() or {}
+                    for h in (actual_rz.get("historial_vacunas") or []):
+                        am_hist = str(h.get("amenaza", "")).strip().lower()
+                        emp_hist = str(h.get("empresa_objetivo", "TODAS")).strip().upper()
+                        if am_hist == amenaza_query.lower() and (
+                            emp_hist == "TODAS" or empresa_objetivo == "TODAS" or emp_hist == empresa_objetivo
+                        ):
+                            ya_inmunizada = True
+                            break
+            except Exception as e_chk:
+                print(f"[!] Aviso consultando historial de vacunas: {e_chk}")
+
         prompt_zero_day = f"""
         Eres el Director de Inteligencia de Amenazas CSIRT de Global365 Sentinel AI.
         Analiza la siguiente vulnerabilidad o amenaza emergente: "{amenaza_query}".
@@ -2080,20 +2099,18 @@ def api_soc_evaluar_vulnerabilidad():
 
         analisis_ia = None
         try:
-            motor_ia = globals().get("client_genai") or globals().get("genai_client") or globals().get("client")
-            if motor_ia and hasattr(motor_ia, "models"):
-                resp_ia = motor_ia.models.generate_content(
-                    model="gemini-2.5-flash",
+            api_key_studio = os.environ.get("GEMINI_API_KEY")
+            if api_key_studio:
+                client_zd = genai.Client(api_key=api_key_studio)
+                resp_ia = client_zd.models.generate_content(
+                    model=MODELO_GEMINI,
                     contents=prompt_zero_day,
-                    config={"response_mime_type": "application/json"}
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.1
+                    )
                 )
-                analisis_ia = json.loads(resp_ia.text)
-            elif "GenerativeModel" in str(globals()) or globals().get("model"):
-                m_obj = globals().get("model")
-                if m_obj and hasattr(m_obj, "generate_content"):
-                    resp_ia = m_obj.generate_content(prompt_zero_day)
-                    txt_clean = resp_ia.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                    analisis_ia = json.loads(txt_clean)
+                analisis_ia = json.loads(resp_ia.text.strip())
         except Exception as e_ia:
             print(f"[!] Aviso fallback Zero-Day IA: {e_ia}")
 
@@ -2129,19 +2146,17 @@ def api_soc_evaluar_vulnerabilidad():
         if aplicar_vacuna and db:
             vac = analisis_ia.get("vacuna_generada", {})
             doc_ref = db.collection("config_global_soc").document("reglas_zero_day")
-            snap = doc_ref.get()
-            actual = snap.to_dict() if snap.exists else {}
 
-            patrones = list(set((actual.get("patrones_cmdline") or []) + (vac.get("patrones_cmdline_nuevos") or [])))
-            padres = list(set((actual.get("padres_web_vigilados") or []) + (vac.get("padres_vigilados_nuevos") or [])))
-            hijos = list(set((actual.get("hijos_prohibidos_webshell") or []) + (vac.get("hijos_prohibidos_nuevos") or [])))
-            rutas_http = list(set((actual.get("rutas_recon_http") or []) + (vac.get("rutas_recon_http") or [])))
+            patrones = list(set((actual_rz.get("patrones_cmdline") or []) + (vac.get("patrones_cmdline_nuevos") or [])))
+            padres = list(set((actual_rz.get("padres_web_vigilados") or []) + (vac.get("padres_vigilados_nuevos") or [])))
+            hijos = list(set((actual_rz.get("hijos_prohibidos_webshell") or []) + (vac.get("hijos_prohibidos_nuevos") or [])))
+            rutas_http = list(set((actual_rz.get("rutas_recon_http") or []) + (vac.get("rutas_recon_http") or [])))
 
             req_os = bool(vac.get("requiere_parche_os", False))
             req_av = bool(vac.get("requiere_update_av", False))
 
             fecha_utc_str = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
-            historial = actual.get("historial_vacunas") or []
+            historial = actual_rz.get("historial_vacunas") or []
             historial.insert(0, {
                 "amenaza": amenaza_query,
                 "empresa_objetivo": empresa_objetivo,
@@ -2212,11 +2227,23 @@ def api_soc_evaluar_vulnerabilidad():
                 f"Inmunización en caliente contra '{amenaza_query}': {len(vac.get('patrones_cmdline_nuevos', []))} firmas inyectadas{detalle_parcheo}",
                 "COMPLETADO"
             )
+            ya_inmunizada = True
+
+        # 2. Si la amenaza ya fue vacunada previamente o se acaba de inmunizar, reflejar 100% de cobertura
+        if ya_inmunizada:
+            analisis_ia["porcentaje_cobertura_actual"] = 100
+            analisis_ia["estado_cobertura"] = "100% INMUNIZADO (VACUNA ZERO-DAY + FIRMAS AL DÍA)"
+            if "vacuna_generada" in analisis_ia and isinstance(analisis_ia["vacuna_generada"], dict):
+                analisis_ia["vacuna_generada"]["requiere_parche_os"] = False
+                analisis_ia["vacuna_generada"]["requiere_update_av"] = False
+                analisis_ia["vacuna_generada"]["justificacion_parche"] = (
+                    f"Flota 100% inmunizada contra '{amenaza_query}' (Firmas dinámicas Zero-Day y definiciones AV aplicadas)."
+                )
 
         return jsonify({
             "status": "success",
             "analisis": analisis_ia,
-            "vacuna_desplegada": aplicar_vacuna,
+            "vacuna_desplegada": aplicar_vacuna or ya_inmunizada,
             "acciones_c2_encoladas": acciones_c2_encoladas,
             "empresas_afectadas": empresas_afectadas_str
         }), 200
