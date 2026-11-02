@@ -742,16 +742,29 @@ def analizar_telemetria_360(telemetria_cruda: dict) -> dict:
         api_key_studio = os.environ.get("GEMINI_API_KEY")
         client = genai.Client(api_key=api_key_studio)
         
-        response = client.models.generate_content(
-            model=MODELO_GEMINI_ARGON,
-            contents=prompt_auditoria,  # (Usa la variable de prompt correspondiente a cada función)
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=esquema_auditoria,  # (Usa el esquema correspondiente a cada función)
-                thinking_config=types.ThinkingConfig(thinking_level="high"),
-                temperature=0.1
+        try:
+            response = client.models.generate_content(
+                model=MODELO_GEMINI_ARGON,
+                contents=prompt_auditoria,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=esquema_auditoria,
+                    thinking_config=types.ThinkingConfig(thinking_level="high"),
+                    temperature=0.1
+                )
             )
-        )
+        except Exception as err_argon:
+            print(f"! Aviso: Argon con alta carga ({sanitize_forensic_log(err_argon)}), respaldando inferencia con {MODELO_GEMINI}...")
+            response = client.models.generate_content(
+                model=MODELO_GEMINI,
+                contents=prompt_auditoria,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=esquema_auditoria,
+                    temperature=0.1
+                )
+            )
+
         diagnostico = json.loads(response.text)
         
         if db:
@@ -2919,17 +2932,19 @@ def api_diagnostico_pc():
 # =========================================================================
 # ENDPOINT DE AUDITORÍA SÍNCRONA 360 (VINCULADO AL PORTAL ADMIN)
 # =========================================================================
-@app.route('/api/auditoria360', methods=['POST'])
-@limiter.limit("5 per minute")
+@app.route('/api/auditoria360', methods=['POST', 'OPTIONS'])
+@limiter.limit("15 per minute")
 def api_auditoria_360_sincrona():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
     try:
         if not db: return jsonify({"status": "error", "message": "Base de datos fuera de línea."}), 503
-        datos_solicitud = request.get_json()
+        datos_solicitud = request.get_json(silent=True) or {}
         if not datos_solicitud:
             return jsonify({"status": "error", "message": "Falta el cuerpo de la solicitud."}), 400
             
         token_validacion = datos_solicitud.get("token_validacion")
-        id_equipo = datos_solicitud.get("idEquipo")
+        id_equipo = str(datos_solicitud.get("idEquipo") or "").strip()
         coleccion_origen = datos_solicitud.get("coleccionOrigen")
         
         if not token_validacion or not id_equipo:
@@ -2937,13 +2952,12 @@ def api_auditoria_360_sincrona():
             
         try:
             informacion_supervisor = firebase_auth.verify_id_token(token_validacion)
-            print(f" Sentinel SOC: Extrayendo auditoría 360 autorizada por {informacion_supervisor['email']}")
+            print(f" Sentinel SOC: Extrayendo auditoría 360 autorizada por {informacion_supervisor.get('email')}")
         except Exception as auth_err:
             print(f" Intento de auditoría no autorizado bloqueado: {str(auth_err)}")
             return jsonify({"status": "error", "message": "Acceso Denegado: Firma criptográfica inválida o expirada."}), 403
             
         # 🟢 BÚSQUEDA INTELIGENTE MULTI-COLECCIÓN (PRODUCCIÓN -> SANDBOX FALLBACK)
-        # Prioridad: 1. Colección solicitada explícitamente -> 2. auditoria_global -> 3. auditoria_sandbox
         colecciones_a_buscar = []
         if coleccion_origen and coleccion_origen in ["auditoria_global", "auditoria_sandbox"]:
             colecciones_a_buscar.append(coleccion_origen)
@@ -2955,21 +2969,25 @@ def api_auditoria_360_sincrona():
         telemetria_cruda = None
         coleccion_encontrada = None
         
-        # Búsqueda en cascada por ID de documento o campo id
+        # Búsqueda en cascada por ID exacto, ID en mayúsculas, campo id o usuario_upper
+        Variantes_id = list(dict.fromkeys([id_equipo, id_equipo.upper()]))
         for col in colecciones_a_buscar:
-            doc_ref = db.collection(col).document(id_equipo).get()
-            if doc_ref.exists:
-                telemetria_cruda = doc_ref.to_dict()
-                coleccion_encontrada = col
-                break
-            else:
-                q = db.collection(col).where("id", "==", id_equipo).limit(1).stream()
-                for doc_item in q:
-                    telemetria_cruda = doc_item.to_dict()
+            for var_id in Variantes_id:
+                doc_ref = db.collection(col).document(var_id).get()
+                if doc_ref.exists:
+                    telemetria_cruda = doc_ref.to_dict()
                     coleccion_encontrada = col
                     break
-                if telemetria_cruda:
-                    break
+            if telemetria_cruda:
+                break
+
+            q = db.collection(col).where(filter=FieldFilter("id", "in", Variantes_id)).limit(1).stream()
+            for doc_item in q:
+                telemetria_cruda = doc_item.to_dict()
+                coleccion_encontrada = col
+                break
+            if telemetria_cruda:
+                break
 
         if not telemetria_cruda:
             return jsonify({
