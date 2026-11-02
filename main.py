@@ -119,11 +119,11 @@ def sanitizar_prompt_input(texto: str) -> str:
 
 def serializar_telemetria_segura(datos_dict: dict) -> str:
     """
-    Serializa a JSON y limpia recursivamente cadenas potencialmente manipuladas
-    provenientes de los endpoints locales.
+    Serializa a JSON (incluyendo Timestamps de Firestore con default=str) y limpia
+    cadenas potencialmente manipuladas provenientes de los endpoints locales.
     """
     try:
-        raw_json = json.dumps(datos_dict, ensure_ascii=False)
+        raw_json = json.dumps(datos_dict, ensure_ascii=False, default=str)
         return sanitizar_prompt_input(raw_json)
     except Exception:
         return "{}"
