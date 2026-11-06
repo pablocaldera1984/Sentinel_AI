@@ -330,6 +330,11 @@ guardian_registry.registrar_herramienta("forzar_parches_os", "predecir_ruta_ataq
 guardian_registry.registrar_herramienta("bloquear_boveda", "predecir_ruta_ataque", "Ejecuta el Kill-Switch de SentinelVault: destruye la clave VMK en RAM y purga los documentos expuestos del Escritorio.")
 guardian_registry.registrar_herramienta("desbloquear_boveda", None, "Revalida el perímetro Zero-Trust S_trust(t), renueva el Crypto-Lease y restaura los documentos cifrados en la bóveda.")
 guardian_registry.registrar_herramienta("shredding_ley21719", None, "Ejecuta el Derecho de Supresión (Crypto-Shredding ARSOP Ley 21.719) destruyendo irreversiblemente los contenedores cifrados.")
+guardian_registry.registrar_herramienta("escanear_pii_disco", None, "Ejecuta el rastreador profundo multi-formato en todo el PC buscando RUTs o Nombres (Ley 21.719).")
+guardian_registry.registrar_herramienta("suprimir_dato_quirurgico", None, "Sobreescribe exclusivamente el RUT o Nombre solicitado dentro de archivos Office/PDF/Texto sin afectar a terceros.")
+guardian_registry.registrar_herramienta("offboarding_usuario_total", "predecir_ruta_ataque", "Ejecuta la caducidad laboral Art. 14 bis: purga VMK en RAM, limpia bóveda, bloquea pantalla y deshabilita cuenta Windows.")
+guardian_registry.registrar_herramienta("exportar_copia_anonimizada", None, "Genera una copia seudonimizada ISO/IEC 20889 de un documento para compartir con terceros.")
+guardian_registry.registrar_herramienta("activar_bitlocker_flota", "predecir_ruta_ataque", "Verifica y activa silenciosamente el cifrado de volumen BitLocker con TPM en la unidad C: y respalda su clave de 48 dígitos.")
 
 # Asignación automática de variables globales para compatibilidad descendente con el resto del script
 LISTA_BLANCA_HERRAMIENTAS = guardian_registry.lista_blanca
@@ -2622,6 +2627,7 @@ def api_remediar_dispositivo():
         doc_ref.update({
             "comandos_pendientes": {
                 "accion": comando_key,
+                "parametros_accion": datos_hitl.get("parametrosAccion", {}),
                 "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
                 "estado_ejecucion": "pendiente",
                 "token_autorizador_oob": generar_token_oob_criptografico(id_equipo, f"MFA_{uid_usuario}")
@@ -4443,6 +4449,615 @@ def enviar_plantilla_alerta_whatsapp(to, dispositivo, incidencia, ticket, recome
         except Exception as e:
             print(f"! Error logging template outbound payload: {str(e)}")
 
+# =========================================================================
+# 🛡️ MOTOR CLOUD NOTARY & ORQUESTACIÓN LEY N° 21.719 (SENTINELVAULT)
+# =========================================================================
+import struct
+import zlib
+import base64
+
+VAULT_MASTER_VMK = os.environ.get("VAULT_MASTER_VMK", "G365-VAULT-2026-ENCLAVE-SECRET32").encode("utf-8")[:32].ljust(32, b"0")
+UTM_VALOR_CLP_2026 = 72440  # Valor oficial referencial UTM Chile
+
+
+def _zwc_crc16(data: bytes) -> int:
+    return zlib.crc32(data) & 0xFFFF
+
+
+def _decodificar_marca_zwc_backend(leaked_text: str) -> dict:
+    """Extrae y verifica criptográficamente la huella invisible ZWC desde un texto filtrado."""
+    ZWC_ZERO = "\u200B"
+    ZWC_ONE = "\u200C"
+    ZWC_FRAME = "\u200D"
+
+    parts = str(leaked_text or "").split(ZWC_FRAME)
+    if len(parts) < 3:
+        return {"verified": False, "reason": "No se detectó trama esteganográfica ZWC en el texto proporcionado."}
+
+    zwc_candidate = parts[1]
+    bits = ["1" if ch == ZWC_ONE else "0" for ch in zwc_candidate if ch in (ZWC_ZERO, ZWC_ONE)]
+    if len(bits) != 64:
+        return {"verified": False, "reason": f"Trama ZWC incompleta o truncada ({len(bits)}/64 bits)."}
+
+    raw_bytes = int("".join(bits), 2).to_bytes(8, byteorder="big")
+    user_id, device_id, timestamp_hours, extracted_crc = struct.unpack(">HHHH", raw_bytes)
+    expected_crc = _zwc_crc16(raw_bytes[:6])
+
+    if extracted_crc != expected_crc:
+        return {"verified": False, "reason": "Fallo de verificación CRC-16: la marca fue alterada."}
+
+    # Cruzar los hashes cortos (16 bits) con los agentes registrados en auditoria_global
+    usuario_resuelto = f"ID #{user_id}"
+    equipo_resuelto = f"HOST #{device_id}"
+    if db:
+        try:
+            for doc in db.collection(COLECCION_TELEMETRIA).limit(100).stream():
+                d = doc.to_dict() or {}
+                usr_str = str(d.get("cliente", {}).get("usuario", ""))
+                dev_str = str(doc.id)
+                u_hash = int(hashlib.sha256(usr_str.encode()).hexdigest()[:4], 16) if usr_str else -1
+                d_hash = int(hashlib.sha256(dev_str.encode()).hexdigest()[:4], 16) if dev_str else -1
+                if u_hash == user_id:
+                    usuario_resuelto = f"{usr_str} (Hash {user_id})"
+                if d_hash == device_id:
+                    equipo_resuelto = f"{dev_str} (Hash {device_id})"
+        except Exception:
+            pass
+
+    return {
+        "verified": True,
+        "user_id_hash": user_id,
+        "device_id_hash": device_id,
+        "usuario_identificado": usuario_resuelto,
+        "equipo_identificado": equipo_resuelto,
+        "timestamp_hours_slot": timestamp_hours,
+        "integrity_crc16": hex(extracted_crc),
+        "normativa": "Ley N° 21.719 Art. 49 letra g) - Atribución Pericial de Fuga"
+    }
+
+
+@app.route('/api/vault/lease', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_issue_lease():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        payload = request.get_json(silent=True) or {}
+        agent_id = str(payload.get("agent_id", "UNKNOWN")).upper().strip()
+        empresa = str(payload.get("empresa", "GLOBAL365")).upper().strip()
+        usuario = str(payload.get("usuario", "")).strip()
+        canaries_ok = bool(payload.get("canaries_ok", True))
+
+        # 1. Verificar si los canaries fueron alterados o si el usuario/equipo tiene Kill Switch u Offboarding activo
+        revocado = False
+        motivo_revocacion = ""
+        lock_os = False
+
+        if not canaries_ok:
+            revocado = True
+            motivo_revocacion = "CANARY_RANSOMWARE_TAMPER_DETECTED"
+
+        if db and not revocado:
+            # Verificar si el trabajador está en la lista de Identidades Caducadas (Offboarding Art. 14 bis)
+            if usuario:
+                doc_off = db.collection("vault_identidades_caducadas").document(f"{empresa}_{usuario.upper()}").get()
+                if doc_off.exists and doc_off.to_dict().get("revocado", False):
+                    revocado = True
+                    lock_os = True
+                    motivo_revocacion = f"OFFBOARDING_ART_14_BIS_CUENTA_CADUCADA ({usuario})"
+
+            # Verificar estado del endpoint
+            doc_eq = db.collection(COLECCION_TELEMETRIA).document(agent_id).get()
+            if doc_eq.exists:
+                eq_data = doc_eq.to_dict() or {}
+                if eq_data.get("vault_kill_switch_active", False):
+                    revocado = True
+                    motivo_revocacion = "ADMIN_REMOTE_KILL_SWITCH"
+
+        if revocado:
+            return jsonify({
+                "lease_status": "REVOKED",
+                "lease_id": f"REV-{int(time.time())}",
+                "s_trust": 0.0,
+                "motivo": motivo_revocacion,
+                "lock_os_account": lock_os
+            }), 200
+
+        # Emitir Lease criptográfico firmado por 900 segundos (15 minutos)
+        lease_id = f"LSE-{int(time.time())}-{agent_id[:6]}"
+        expires_ts = int(time.time()) + 900
+        s_trust = 1.0
+        vmk_b64 = base64.b64encode(VAULT_MASTER_VMK).decode("utf-8")
+
+        secretos = obtener_secretos_agente(agent_id)
+        clave_hmac = secretos.get("hmac_secret") or AGENT_HMAC_SECRET
+        canonical = f"{lease_id}:{agent_id}:{expires_ts}:{s_trust}:{vmk_b64}"
+        firma = hmac.new(clave_hmac.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        return jsonify({
+            "lease_status": "GRANTED",
+            "lease_id": lease_id,
+            "expires_at": expires_ts,
+            "s_trust": s_trust,
+            "ephemeral_vmk_b64": vmk_b64,
+            "hmac_signature": firma
+        }), 200
+    except Exception as e:
+        return jsonify({"lease_status": "ERROR", "message": str(e)}), 500
+
+
+@app.route('/api/vault/ropa/ingest', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_ropa_ingest():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        if db:
+            doc_id = f"{datos.get('empresa', 'GLOBAL365')}_{datos.get('agent_id', 'PC')}_{datos.get('file_name', 'doc')}".upper()
+            doc_id = re.sub(r"[^A-Z0-9_\-\.]", "_", doc_id)
+            db.collection("vault_ropa_registry").document(doc_id).set({
+                **datos,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/ropa/summary', methods=['GET', 'OPTIONS'])
+@limiter.exempt
+def api_vault_ropa_summary():
+    """Devuelve el consolidado RoPA (Art. 14 ter), el estado de BitLocker de toda la flota (X/Y PCs) y el Scoring de Riesgo en UTM."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        empresa_q = request.args.get("empresa", "TODAS").strip().upper()
+        total_pcs = 0
+        pcs_bitlocker_ok = 0
+        pcs_boveda_activa = 0
+        incidentes_dlp_total = 0
+        equipos_detalle = []
+
+        if db:
+            for doc in db.collection(COLECCION_TELEMETRIA).stream():
+                d = doc.to_dict() or {}
+                emp = str(d.get("cliente", {}).get("empresa") or d.get("empresa_upper") or "GLOBAL365").upper()
+                if empresa_q not in ("TODAS", "", emp):
+                    continue
+                total_pcs += 1
+                v_info = d.get("sentinel_vault", {})
+                postura = d.get("security_posture", {})
+                bit_ok = bool(v_info.get("bitlocker_protegido") or postura.get("bitlocker_status") == "PROTEGIDO")
+                if bit_ok:
+                    pcs_bitlocker_ok += 1
+                if v_info.get("boveda_activa"):
+                    pcs_boveda_activa += 1
+                incidentes_dlp_total += int(v_info.get("dlp_incidentes_portapapeles", 0))
+                equipos_detalle.append({
+                    "id_equipo": doc.id,
+                    "usuario": d.get("cliente", {}).get("usuario", doc.id),
+                    "empresa": emp,
+                    "bitlocker_protegido": bit_ok,
+                    "bitlocker_estado": v_info.get("bitlocker_estado", "PROTEGIDO" if bit_ok else "DESACTIVADO"),
+                    "boveda_activa": bool(v_info.get("boveda_activa", False)),
+                    "archivos_cifrados": int(v_info.get("archivos_cifrados", 0)),
+                    "dlp_incidentes": int(v_info.get("dlp_incidentes_portapapeles", 0))
+                })
+
+        ropa_items = []
+        total_ruts_tratados = 0
+        archivos_criticos_salud = 0
+        if db:
+            for rdoc in db.collection("vault_ropa_registry").limit(100).stream():
+                rd = rdoc.to_dict() or {}
+                emp_r = str(rd.get("empresa", "GLOBAL365")).upper()
+                if empresa_q not in ("TODAS", "", emp_r):
+                    continue
+                pa = rd.get("privacy_audit", {})
+                cnt_ruts = int(pa.get("counts", {}).get("chilean_ruts", 0))
+                total_ruts_tratados += cnt_ruts
+                if pa.get("sensitivity_level") == "CRITICAL" or "SALUD" in (pa.get("categories") or []):
+                    archivos_criticos_salud += 1
+                ropa_items.append({
+                    "agent_id": rd.get("agent_id"),
+                    "usuario": rd.get("usuario"),
+                    "file_name": rd.get("file_name"),
+                    "gateway_mac_l2": rd.get("gateway_mac_l2"),
+                    "sensitivity": pa.get("sensitivity_level", "HIGH"),
+                    "categories": pa.get("categories", ["GENERAL"]),
+                    "ruts_count": cnt_ruts
+                })
+
+        # Cálculo de Multas Mitigadas en UTM (Ley 21.719)
+        utm_mitigadas = (pcs_bitlocker_ok * 5000) + (pcs_boveda_activa * 5000)
+        if utm_mitigadas == 0 and total_pcs > 0:
+            utm_mitigadas = 5000
+
+        return jsonify({
+            "status": "success",
+            "bitlocker_flota": {
+                "protegidos": pcs_bitlocker_ok,
+                "total_pcs": total_pcs,
+                "ratio_texto": f"{pcs_bitlocker_ok}/{total_pcs} PCs con BitLocker Activado",
+                "porcentaje": round((pcs_bitlocker_ok / total_pcs) * 100) if total_pcs > 0 else 0
+            },
+            "metricas_ley21719": {
+                "bovedas_activas": pcs_boveda_activa,
+                "total_ruts_auditados": total_ruts_tratados,
+                "archivos_criticos_salud": archivos_criticos_salud,
+                "incidentes_dlp_contenidos": incidentes_dlp_total,
+                "utm_riesgo_mitigado": utm_mitigadas,
+                "clp_riesgo_mitigado": utm_mitigadas * UTM_VALOR_CLP_2026,
+                "requiere_eipd_art_15_ter": archivos_criticos_salud > 0 or total_ruts_tratados > 100
+            },
+            "equipos": equipos_detalle,
+            "ropa_registros": ropa_items
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/arsop/dispatch-scan', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_arsop_dispatch_scan():
+    """Encola en uno o todos los PCs de la empresa la orden de buscar un RUT y/o Nombre en el interior de todos los archivos."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        terminos = datos.get("queries") or datos.get("terminos") or []
+        if isinstance(terminos, str):
+            terminos = [t.strip() for t in terminos.split(",") if t.strip()]
+        empresa_obj = str(datos.get("empresa", "TODAS")).strip().upper()
+        id_equipo_obj = str(datos.get("id_equipo", "TODOS")).strip().upper()
+        solicitud_id = f"SCAN-{int(time.time())}"
+
+        if not terminos:
+            return jsonify({"status": "error", "message": "Debe ingresar al menos un RUT o Nombre a buscar."}), 400
+
+        equipos_encolados = []
+        if db:
+            for doc in db.collection(COLECCION_TELEMETRIA).stream():
+                d = doc.to_dict() or {}
+                emp = str(d.get("cliente", {}).get("empresa") or d.get("empresa_upper") or "GLOBAL365").upper()
+                if id_equipo_obj not in ("TODOS", "", doc.id.upper()):
+                    continue
+                if id_equipo_obj in ("TODOS", "") and empresa_obj not in ("TODAS", "", emp):
+                    continue
+
+                doc.reference.set({
+                    "orden_c2_pendiente": {
+                        "comando": "escanear_pii_disco",
+                        "origen": "ARSOP_DEEP_SCAN",
+                        "timestamp": int(time.time()),
+                        "motivo": f"Búsqueda profunda Ley 21.719 para {terminos}"
+                    },
+                    "comandos_pendientes": {
+                        "accion": "escanear_pii_disco",
+                        "parametros_accion": {
+                            "queries": terminos,
+                            "solicitud_id": solicitud_id
+                        },
+                        "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+                        "estado_ejecucion": "pendiente",
+                        "token_autorizador_oob": generar_token_oob_criptografico(doc.id, "escanear_pii_disco")
+                    }
+                }, merge=True)
+                equipos_encolados.append(doc.id)
+
+        return jsonify({
+            "status": "success",
+            "solicitud_id": solicitud_id,
+            "queries": terminos,
+            "equipos_notificados": equipos_encolados
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/arsop/scan-report', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_arsop_scan_report():
+    """Recibe desde los PCs los resultados del escaneo profundo de archivos y los guarda en Firestore."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        reporte = request.get_json(silent=True) or {}
+        if db:
+            doc_id = f"{reporte.get('solicitud_id', 'SCAN')}_{reporte.get('agent_id', 'PC')}".upper()
+            db.collection("vault_arsop_scans").document(doc_id).set({
+                **reporte,
+                "received_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/arsop/results', methods=['GET', 'OPTIONS'])
+@limiter.exempt
+def api_vault_arsop_get_results():
+    """Consulta los resultados de escaneos profundos y los archivos ya intervenidos/sanitizados listos para descarga."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        scans = []
+        evidences = []
+        if db:
+            for sdoc in db.collection("vault_arsop_scans").limit(25).stream():
+                sd = sdoc.to_dict() or {}
+                sd.pop("received_at", None)
+                scans.append(sd)
+
+            for edoc in db.collection("vault_arsop_evidences").limit(25).stream():
+                ed = edoc.to_dict() or {}
+                ed.pop("received_at", None)
+                evidences.append(ed)
+
+        scans.sort(key=lambda x: str(x.get("timestamp_utc", "")), reverse=True)
+        evidences.sort(key=lambda x: str(x.get("timestamp_utc", "")), reverse=True)
+        return jsonify({
+            "status": "success",
+            "scans": scans,
+            "evidences": evidences
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/arsop/dispatch-redaction', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_arsop_dispatch_redaction():
+    """Ordena el borrado quirúrgico in-situ de un RUT y/o Nombre en todos los archivos del PC sin dañar datos de terceros."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        terminos = datos.get("queries") or datos.get("terminos") or []
+        if isinstance(terminos, str):
+            terminos = [t.strip() for t in terminos.split(",") if t.strip()]
+        id_equipo_obj = str(datos.get("id_equipo", "TODOS")).strip().upper()
+        target_paths = datos.get("target_paths")
+        acta_id = f"ARSOP-{int(time.time()) % 100000}"
+
+        if not terminos:
+            return jsonify({"status": "error", "message": "Debe especificar el RUT o Nombre a suprimir quirúrgicamente."}), 400
+
+        equipos_encolados = []
+        if db:
+            for doc in db.collection(COLECCION_TELEMETRIA).stream():
+                if id_equipo_obj not in ("TODOS", "", doc.id.upper()):
+                    continue
+                doc.reference.set({
+                    "comandos_pendientes": {
+                        "accion": "suprimir_dato_quirurgico",
+                        "parametros_accion": {
+                            "queries": terminos,
+                            "acta_id": acta_id,
+                            "target_paths": target_paths
+                        },
+                        "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+                        "estado_ejecucion": "pendiente",
+                        "token_autorizador_oob": generar_token_oob_criptografico(doc.id, "suprimir_dato_quirurgico")
+                    }
+                }, merge=True)
+                equipos_encolados.append(doc.id)
+
+        registrar_actuacion_soc(
+            id_equipo=id_equipo_obj,
+            empresa=datos.get("empresa", "GLOBAL365"),
+            usuario="DPO / Master Admin",
+            origen="ADMIN_PORTAL",
+            accion=f"SUPRESION_QUIRURGICA_{acta_id}",
+            gatillo=f"Orden de supresión selectiva in-situ Ley 21.719 para {terminos} en {len(equipos_encolados)} PC(s).",
+            estado="COMPLETADO"
+        )
+
+        return jsonify({
+            "status": "success",
+            "acta_id": acta_id,
+            "queries": terminos,
+            "equipos_notificados": equipos_encolados
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/arsop/redaction-evidence', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_arsop_redaction_evidence():
+    """Recibe el informe forense y los archivos con el dato ya borrado (en Base64) para descargarlos desde portal_admin.html."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        evidencia = request.get_json(silent=True) or {}
+        if db:
+            acta_id = str(evidencia.get("acta_id", f"ARSOP-{int(time.time())}")).upper()
+            agent_id = str(evidencia.get("agent_id", "PC")).upper()
+            db.collection("vault_arsop_evidences").document(f"{acta_id}_{agent_id}").set({
+                **evidencia,
+                "received_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/offboarding/dispatch', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_offboarding_dispatch():
+    """Caduca globalmente la cuenta de un trabajador (Art. 14 bis), purga la bóveda y bloquea su sesión en todos los PCs."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        usuario_target = str(datos.get("usuario", "")).strip()
+        empresa = str(datos.get("empresa", "GLOBAL365")).strip().upper()
+        if not usuario_target:
+            return jsonify({"status": "error", "message": "Debe indicar el nombre de usuario del trabajador a desvincular."}), 400
+
+        cert_id = f"OFFB-{int(time.time()) % 100000}"
+        equipos_afectados = []
+
+        if db:
+            # 1. Registrar en lista negra de identidades caducadas para que nunca más reciba un Lease VMK
+            db.collection("vault_identidades_caducadas").document(f"{empresa}_{usuario_target.upper()}").set({
+                "usuario": usuario_target,
+                "empresa": empresa,
+                "revocado": True,
+                "certificado_id": cert_id,
+                "timestamp_utc": datetime.utcnow().isoformat() + "Z"
+            }, merge=True)
+
+            # 2. Buscar todos los PCs donde ese usuario esté activo o asignado y disparar el bloqueo inmediato
+            for doc in db.collection(COLECCION_TELEMETRIA).stream():
+                d = doc.to_dict() or {}
+                usr_pc = str(d.get("cliente", {}).get("usuario", "")).strip()
+                emp_pc = str(d.get("cliente", {}).get("empresa") or d.get("empresa_upper") or "GLOBAL365").upper()
+                if usuario_target.lower() in usr_pc.lower() or (empresa in emp_pc and datos.get("aplicar_toda_empresa")):
+                    doc.reference.set({
+                        "vault_kill_switch_active": True,
+                        "comandos_pendientes": {
+                            "accion": "offboarding_usuario_total",
+                            "parametros_accion": {"usuario_target": usuario_target, "cert_id": cert_id},
+                            "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+                            "estado_ejecucion": "pendiente",
+                            "token_autorizador_oob": generar_token_oob_criptografico(doc.id, "offboarding_usuario_total")
+                        }
+                    }, merge=True)
+                    equipos_afectados.append(doc.id)
+
+        registrar_actuacion_soc(
+            id_equipo=",".join(equipos_afectados) if equipos_afectados else "GLOBAL_TENANT",
+            empresa=empresa,
+            usuario=usuario_target,
+            origen="ADMIN_PORTAL",
+            accion="OFFBOARDING_CRIPTOGRAFICO_ART14BIS",
+            gatillo=f"Cuenta de '{usuario_target}' caducada globalmente. Lease VMK revocado y bloqueo Windows enviado a {len(equipos_afectados)} PC(s).",
+            estado="ACTIVO"
+        )
+
+        return jsonify({
+            "status": "success",
+            "certificado_id": cert_id,
+            "usuario_desvinculado": usuario_target,
+            "empresa": empresa,
+            "equipos_bloqueados": equipos_afectados,
+            "timestamp_utc": datetime.utcnow().isoformat() + "Z",
+            "normativa": "Ley N° 21.719 Art. 3° letra f) y Art. 14 bis + ISO/IEC 27040:2024 Cláusula 10.6.5"
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/offboarding/ack', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_offboarding_ack():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        if db:
+            db.collection("vault_offboarding_acks").add({
+                **datos,
+                "timestamp": firestore.SERVER_TIMESTAMP
+            })
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/forensics/zwc-decode', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_forensics_zwc_decode():
+    """Decodifica marcas de agua invisibles (ZWC) de un texto filtrado e identifica usuario y PC."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        texto_filtrado = datos.get("leaked_text") or datos.get("texto", "")
+        resultado = _decodificar_marca_zwc_backend(texto_filtrado)
+        return jsonify({"status": "success", "dictamen": resultado}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/bitlocker/escrow', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_bitlocker_escrow():
+    """Guarda en bóveda Firestore la clave de recuperación de 48 dígitos cuando un PC activa BitLocker."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        agent_id = str(datos.get("agent_id", "PC")).upper()
+        if db:
+            db.collection("vault_bitlocker_escrow").document(agent_id).set({
+                **datos,
+                "timestamp": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+            db.collection(COLECCION_TELEMETRIA).document(agent_id).set({
+                "sentinel_vault": {"bitlocker_protegido": True, "bitlocker_estado": "PROTEGIDO"},
+                "security_posture": {"bitlocker_status": "PROTEGIDO"}
+            }, merge=True)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/vault/bitlocker/activate-fleet', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_vault_bitlocker_activate_fleet():
+    """Ordena activar BitLocker en todos los PCs de la empresa (los que ya lo tienen activo no sufren cambios)."""
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        empresa_obj = str(datos.get("empresa", "TODAS")).strip().upper()
+        equipos_notificados = []
+        equipos_ya_protegidos = []
+
+        if db:
+            for doc in db.collection(COLECCION_TELEMETRIA).stream():
+                d = doc.to_dict() or {}
+                emp = str(d.get("cliente", {}).get("empresa") or d.get("empresa_upper") or "GLOBAL365").upper()
+                if empresa_obj not in ("TODAS", "", emp):
+                    continue
+                v_info = d.get("sentinel_vault", {})
+                postura = d.get("security_posture", {})
+                ya_activo = bool(v_info.get("bitlocker_protegido") or postura.get("bitlocker_status") == "PROTEGIDO")
+                if ya_activo:
+                    equipos_ya_protegidos.append(doc.id)
+
+                # Encolamos el comando idempotente en toda la flota seleccionada
+                doc.reference.set({
+                    "comandos_pendientes": {
+                        "accion": "activar_bitlocker_flota",
+                        "timestamp_solicitud": firestore.SERVER_TIMESTAMP,
+                        "estado_ejecucion": "pendiente",
+                        "token_autorizador_oob": generar_token_oob_criptografico(doc.id, "activar_bitlocker_flota")
+                    }
+                }, merge=True)
+                equipos_notificados.append(doc.id)
+
+        registrar_actuacion_soc(
+            id_equipo="FLOTA_" + empresa_obj,
+            empresa=empresa_obj,
+            usuario="Master Admin",
+            origen="ADMIN_PORTAL",
+            accion="ACTIVAR_BITLOCKER_FLOTA",
+            gatillo=f"Orden de cifrado de disco BitLocker enviada a {len(equipos_notificados)} PC(s) ({len(equipos_ya_protegidos)} ya estaban activos).",
+            estado="COMPLETADO"
+        )
+
+        return jsonify({
+            "status": "success",
+            "equipos_notificados": equipos_notificados,
+            "equipos_ya_protegidos": equipos_ya_protegidos
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
