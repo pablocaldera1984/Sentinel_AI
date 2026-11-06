@@ -4727,12 +4727,6 @@ def api_vault_arsop_dispatch_scan():
                     continue
 
                 doc.reference.set({
-                    "orden_c2_pendiente": {
-                        "comando": "escanear_pii_disco",
-                        "origen": "ARSOP_DEEP_SCAN",
-                        "timestamp": int(time.time()),
-                        "motivo": f"Búsqueda profunda Ley 21.719 para {terminos}"
-                    },
                     "comandos_pendientes": {
                         "accion": "escanear_pii_disco",
                         "parametros_accion": {
