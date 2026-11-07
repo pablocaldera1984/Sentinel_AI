@@ -5053,5 +5053,71 @@ def api_vault_bitlocker_activate_fleet():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# =========================================================================
+# 🚨 PUENTE RECEPTOR DE ALERTAS CTI ZERO-HOUR (DESDE SENTINELRECON -> WHATSAPP)
+# =========================================================================
+@app.route('/api/notificar-whatsapp', methods=['POST', 'OPTIONS'])
+@limiter.exempt
+def api_notificar_whatsapp_cti():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight_ok"}), 200
+    try:
+        datos = request.get_json(silent=True) or {}
+        telefono_destino = str(datos.get("telefono") or "").strip()
+        mensaje = str(datos.get("mensaje") or "").strip()
+        cve_id = str(datos.get("cve_id") or "CVE-ZERO-HOUR").strip()
+        asunto_email = str(datos.get("asunto_email") or "Alerta Crítica de Vulnerabilidad").strip()
+        email_destino = str(datos.get("email_destino") or "pablocaldera1984@gmail.com").strip()
+
+        # 1. Si SentinelRecon no envió teléfono explícito, resolver automáticamente el del Admin en Firestore
+        if not telefono_destino or telefono_destino.upper() == "DESCONOCIDO":
+            tel_sup, tel_adm = obtener_telefonos_responsables("GLOBAL365")
+            telefono_destino = tel_adm if tel_adm != "DESCONOCIDO" else tel_sup
+
+        if not telefono_destino or telefono_destino == "DESCONOCIDO":
+            return jsonify({
+                "status": "error",
+                "message": "No se encontró un teléfono de Administrador en Firestore ni en el payload."
+            }), 400
+
+        tkt_cti = f"CTI-{int(time.time()) % 10000:04d}"
+
+        # 2. Despertar la sesión de 24h de WhatsApp con tu plantilla aprobada 'sentinel_alert_v2'
+        try:
+            enviar_plantilla_alerta_whatsapp(
+                to=telefono_destino,
+                dispositivo="Radar CTI Zero-Hour (Stack Cliente)",
+                incidencia=f"Vulnerabilidad Crítica Detectada: {cve_id}",
+                ticket=tkt_cti,
+                recomendacion=f"Revisar borrador con links de parches en {email_destino} y reenviar al cliente"
+            )
+        except Exception as err_tpl:
+            print(f"[!] Aviso al enviar plantilla CTI: {sanitize_forensic_log(err_tpl)}")
+
+        # 3. Enviar el mensaje táctico detallado con el resumen de Gemini
+        if mensaje:
+            enviar_texto_whatsapp(telefono_destino, mensaje)
+
+        # 4. Dejar registro auditable en la Bitácora Centralizada SOC
+        registrar_actuacion_soc(
+            id_equipo="SENTINEL_RECON_CTI",
+            empresa="CLIENTE_DESARROLLADOR_USA",
+            usuario="Pablo Caldera (Master Admin)",
+            origen="ZERO_HOUR_CTI_ENGINE",
+            accion=f"ALERTA_TEMPRANA_{cve_id}",
+            gatillo=f"Notificación enviada a WhatsApp y correo preparado en {email_destino} ({asunto_email})",
+            estado="COMPLETADO"
+        )
+
+        return jsonify({
+            "status": "success",
+            "telefono_notificado": telefono_destino,
+            "ticket_cti": tkt_cti
+        }), 200
+
+    except Exception as e:
+        print(f"X Error en /api/notificar-whatsapp: {sanitize_forensic_log(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
