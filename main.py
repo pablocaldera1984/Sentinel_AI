@@ -5169,14 +5169,15 @@ def cron_barrido_cti_zero_hour():
             timeout=120
         )
         data = resp.json() if resp.status_code == 200 else {}
-        nuevas = data.get("dispatched_alerts") or []
+        # SentinelRecon devuelve la llave 'dispatched_advisories'
+        nuevas = data.get("dispatched_advisories") or data.get("dispatched_alerts") or []
         guardadas = 0
 
-        # 4. Guardar en bitacora_cti_zerohour con Timestamp nativo y sin repetir CVEs
+        # 4. Guardar en bitacora_cti_zerohour con Timestamp nativo y estructura exacta
         for item in nuevas:
-            sig = item.get("signal") or {}
+            sig = item.get("signal") or item
             adv = item.get("advisory") or {}
-            delivery = item.get("delivery") or {}
+            delivery = item.get("notification_status") or item.get("delivery") or {}
             vuln_id = str(sig.get("vuln_id") or "CVE-UNKNOWN").strip().upper()
             doc_id = re.sub(r"[^a-zA-Z0-9_-]", "_", vuln_id)
 
@@ -5189,7 +5190,7 @@ def cron_barrido_cti_zero_hour():
                 "state_hash": sig.get("state_hash", ""),
                 "timestamp": gcp_firestore.SERVER_TIMESTAMP,
                 "vuln_id": vuln_id,
-                "whatsapp_summary": adv.get("whatsapp_summary", ""),
+                "whatsapp_summary": adv.get("whatsapp_tactical_summary") or adv.get("whatsapp_summary", ""),
                 "zhr_score": sig.get("zhr_score", 0)
             }, merge=True)
             guardadas += 1
