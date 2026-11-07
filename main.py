@@ -5084,12 +5084,14 @@ def api_notificar_whatsapp_cti():
 
         # 2. Despertar la sesión de 24h de WhatsApp con tu plantilla aprobada 'sentinel_alert_v2'
         try:
+            resumen_corto = str(datos.get("asunto_email") or cve_id).replace("[REVISAR Y ENVIAR A CLIENTE]", "").strip()
+
             enviar_plantilla_alerta_whatsapp(
                 to=telefono_destino,
                 dispositivo="Radar CTI Zero-Hour (Stack Cliente)",
-                incidencia=f"Vulnerabilidad Crítica Detectada: {cve_id}",
+                incidencia=resumen_corto[:95],
                 ticket=tkt_cti,
-                recomendacion=f"Revisar borrador con links de parches en {email_destino} y reenviar al cliente"
+                recomendacion=f"Correo con comandos CLI y parches verificados listo en {email_destino} para reenviar."
             )
         except Exception as err_tpl:
             print(f"[!] Aviso al enviar plantilla CTI: {sanitize_forensic_log(err_tpl)}")
