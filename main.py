@@ -5131,18 +5131,31 @@ def cron_barrido_cti_zero_hour():
     import re
     import requests as req_client
     from google.cloud import firestore as gcp_firestore
+    import firebase_admin
+    from firebase_admin import firestore as fb_firestore
     try:
-        # 1. Leer de bitacora_cti_zerohour todos los state_hash ya registrados
-        hashes_procesados = []
-        if db:
-            docs_existentes = db.collection('bitacora_cti_zerohour').limit(200).stream()
-            for d in docs_existentes:
-                doc_data = d.to_dict() or {}
-                h = doc_data.get("state_hash")
-                if h:
-                    hashes_procesados.append(h)
+        # 1. Asegurar cliente Firestore activo (aunque la variable global db sea None)
+        if 'db' in globals() and db is not None:
+            db_cti = db
+        else:
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
+            db_cti = fb_firestore.client()
 
-        # 2. Invocar a SentinelRecon en modo estricto (solo alertas nuevas)
+        # 2. Leer de bitacora_cti_zerohour todos los state_hash y vuln_id ya registrados
+        hashes_procesados = []
+        cves_procesados = set()
+        docs_existentes = db_cti.collection('bitacora_cti_zerohour').limit(200).stream()
+        for d in docs_existentes:
+            doc_data = d.to_dict() or {}
+            h = doc_data.get("state_hash")
+            v = doc_data.get("vuln_id")
+            if h:
+                hashes_procesados.append(h)
+            if v:
+                cves_procesados.add(str(v).strip().upper())
+
+        # 3. Invocar a SentinelRecon en modo estricto (solo alertas nuevas)
         recon_url = "https://sentinelrecon-369266483091.us-central1.run.app/api/cti/zero-hour-scan"
         resp = req_client.post(
             recon_url,
@@ -5157,51 +5170,52 @@ def cron_barrido_cti_zero_hour():
         )
         data = resp.json() if resp.status_code == 200 else {}
         nuevas = data.get("dispatched_alerts") or []
+        guardadas = 0
 
-        # 3. Guardar en bitacora_cti_zerohour con la estructura exacta y Timestamp nativo
-        if nuevas:
-            for item in nuevas:
-                sig = item.get("signal") or {}
-                adv = item.get("advisory") or {}
-                delivery = item.get("delivery") or {}
-                vuln_id = str(sig.get("vuln_id") or "CVE-UNKNOWN")
-                doc_id = re.sub(r"[^a-zA-Z0-9_-]", "_", vuln_id)
+        # 4. Guardar en bitacora_cti_zerohour con Timestamp nativo y sin repetir CVEs
+        for item in nuevas:
+            sig = item.get("signal") or {}
+            adv = item.get("advisory") or {}
+            delivery = item.get("delivery") or {}
+            vuln_id = str(sig.get("vuln_id") or "CVE-UNKNOWN").strip().upper()
+            doc_id = re.sub(r"[^a-zA-Z0-9_-]", "_", vuln_id)
 
-                if db:
-                    db.collection('bitacora_cti_zerohour').document(doc_id).set({
-                        "alert_tier": sig.get("alert_tier", "P0_CRITICAL_IMMEDIATE"),
-                        "cli_patch_command": adv.get("cli_patch_command", ""),
-                        "email_subject": adv.get("email_subject", ""),
-                        "matched_technologies": sig.get("matched_technologies", []),
-                        "official_patch_links": adv.get("official_patch_links", []),
-                        "state_hash": sig.get("state_hash", ""),
-                        "timestamp": gcp_firestore.SERVER_TIMESTAMP,
-                        "vuln_id": vuln_id,
-                        "whatsapp_summary": adv.get("whatsapp_summary", ""),
-                        "zhr_score": sig.get("zhr_score", 0)
-                    }, merge=True)
+            db_cti.collection('bitacora_cti_zerohour').document(doc_id).set({
+                "alert_tier": sig.get("alert_tier", "P0_CRITICAL_IMMEDIATE"),
+                "cli_patch_command": adv.get("cli_patch_command", ""),
+                "email_subject": adv.get("email_subject", ""),
+                "matched_technologies": sig.get("matched_technologies", []),
+                "official_patch_links": adv.get("official_patch_links", []),
+                "state_hash": sig.get("state_hash", ""),
+                "timestamp": gcp_firestore.SERVER_TIMESTAMP,
+                "vuln_id": vuln_id,
+                "whatsapp_summary": adv.get("whatsapp_summary", ""),
+                "zhr_score": sig.get("zhr_score", 0)
+            }, merge=True)
+            guardadas += 1
 
-                # Respaldo de WhatsApp si el puente estuvo ocupado
-                if not delivery.get("whatsapp_dispatched") and delivery.get("whatsapp_preview"):
-                    try:
-                        req_client.post(
-                            "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/notificar-whatsapp",
-                            json={
-                                "telefono": os.environ.get("ADMIN_WHATSAPP_PHONE", ""),
-                                "mensaje": delivery.get("whatsapp_preview"),
-                                "cve_id": vuln_id,
-                                "origen": "SENTINEL_ZERO_HOUR_CTI"
-                            },
-                            timeout=15
-                        )
-                    except Exception as wa_err:
-                        print(f"Aviso reintento WA en cron: {wa_err}")
+            # Respaldo de WhatsApp si el puente estuvo ocupado
+            if not delivery.get("whatsapp_dispatched") and delivery.get("whatsapp_preview"):
+                try:
+                    req_client.post(
+                        "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/notificar-whatsapp",
+                        json={
+                            "telefono": os.environ.get("ADMIN_WHATSAPP_PHONE", ""),
+                            "mensaje": delivery.get("whatsapp_preview"),
+                            "cve_id": vuln_id,
+                            "origen": "SENTINEL_ZERO_HOUR_CTI"
+                        },
+                        timeout=15
+                    )
+                except Exception as wa_err:
+                    print(f"Aviso reintento WA en cron: {wa_err}")
 
         return jsonify({
             "status": "ok",
             "coleccion": "bitacora_cti_zerohour",
-            "nuevas_alertas_criticas": len(nuevas),
-            "hashes_conocidos_omitidos": len(hashes_procesados)
+            "hashes_conocidos_leidos": len(hashes_procesados),
+            "cves_conocidos_leidos": list(cves_procesados),
+            "nuevas_alertas_guardadas": guardadas
         }), 200
 
     except Exception as e:
