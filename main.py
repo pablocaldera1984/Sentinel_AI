@@ -5140,7 +5140,7 @@ def cron_barrido_cti_zero_hour():
                 if h:
                     hashes_procesados.append(h)
 
-        # 2. Invocar a SentinelRecon en modo estricto (force_notify_top = False)
+        # 2. Invocar a SentinelRecon con margen de 120s para que nunca corte antes de guardar en Firestore
         recon_url = "https://sentinelrecon-369266483091.us-central1.run.app/api/cti/zero-hour-scan"
         resp = req_client.post(
             recon_url,
@@ -5151,29 +5151,48 @@ def cron_barrido_cti_zero_hour():
                 "processed_state_hashes": hashes_procesados,
                 "force_notify_top": False
             },
-            timeout=55
+            timeout=120
         )
         data = resp.json() if resp.status_code == 200 else {}
         nuevas = data.get("dispatched_alerts") or []
 
-        # 3. Si hubo hallazgos críticos nuevos (P0/P1), guardarlos en Firestore para que aparezcan en portal_admin
-        if db and nuevas:
+        # 3. Guardar en Firestore (portal_admin) y asegurar envío de WhatsApp si el puente estuvo ocupado
+        if nuevas:
             for item in nuevas:
                 sig = item.get("signal") or {}
                 adv = item.get("advisory") or {}
+                delivery = item.get("delivery") or {}
                 vuln_id = str(sig.get("vuln_id") or "CVE-UNKNOWN")
                 doc_id = re.sub(r"[^a-zA-Z0-9_-]", "_", vuln_id)
-                db.collection('cti_zero_hour_alerts').document(doc_id).set({
-                    "vuln_id": vuln_id,
-                    "state_hash": sig.get("state_hash", ""),
-                    "matched_technologies": sig.get("matched_technologies", []),
-                    "zhr_score": sig.get("zhr_score", 0),
-                    "alert_tier": sig.get("alert_tier", "P0_CRITICAL_IMMEDIATE"),
-                    "email_subject": adv.get("email_subject", ""),
-                    "cli_patch_command": adv.get("cli_patch_command", ""),
-                    "official_patch_links": adv.get("official_patch_links", []),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }, merge=True)
+
+                if db:
+                    db.collection('cti_zero_hour_alerts').document(doc_id).set({
+                        "vuln_id": vuln_id,
+                        "state_hash": sig.get("state_hash", ""),
+                        "matched_technologies": sig.get("matched_technologies", []),
+                        "zhr_score": sig.get("zhr_score", 0),
+                        "alert_tier": sig.get("alert_tier", "P0_CRITICAL_IMMEDIATE"),
+                        "email_subject": adv.get("email_subject", ""),
+                        "cli_patch_command": adv.get("cli_patch_command", ""),
+                        "official_patch_links": adv.get("official_patch_links", []),
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }, merge=True)
+
+                # Si el worker estuvo bloqueado durante el cron, despachar el WhatsApp al liberar la respuesta
+                if not delivery.get("whatsapp_dispatched") and delivery.get("whatsapp_preview"):
+                    try:
+                        req_client.post(
+                            "https://enviar-alerta-sentinel-369266483091.us-central1.run.app/api/notificar-whatsapp",
+                            json={
+                                "telefono": os.environ.get("ADMIN_WHATSAPP_PHONE", ""),
+                                "mensaje": delivery.get("whatsapp_preview"),
+                                "cve_id": vuln_id,
+                                "origen": "SENTINEL_ZERO_HOUR_CTI"
+                            },
+                            timeout=15
+                        )
+                    except Exception as wa_err:
+                        print(f"Aviso reintento WA en cron: {wa_err}")
 
         return jsonify({
             "status": "ok",
