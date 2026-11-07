@@ -5127,6 +5127,9 @@ def api_notificar_whatsapp_cti():
 @app.route('/api/cron/barrido-cti-zero-hour', methods=['POST', 'GET'])
 @limiter.exempt
 def cron_barrido_cti_zero_hour():
+    import re
+    import requests as req_client
+    from datetime import datetime, timezone
     try:
         # 1. Leer de Firestore las vulnerabilidades ya notificadas para no repetir WhatsApp/Gmail
         hashes_procesados = []
@@ -5139,7 +5142,7 @@ def cron_barrido_cti_zero_hour():
 
         # 2. Invocar a SentinelRecon en modo estricto (force_notify_top = False)
         recon_url = "https://sentinelrecon-369266483091.us-central1.run.app/api/cti/zero-hour-scan"
-        resp = http_requests.post(
+        resp = req_client.post(
             recon_url,
             json={
                 "target_host": None,
@@ -5179,7 +5182,7 @@ def cron_barrido_cti_zero_hour():
         }), 200
 
     except Exception as e:
-        print(f"X Error en cron_barrido_cti_zero_hour: {sanitize_forensic_log(e)}")
+        print(f"X Error en cron_barrido_cti_zero_hour: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
