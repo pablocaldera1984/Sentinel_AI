@@ -5121,5 +5121,66 @@ def api_notificar_whatsapp_cti():
         print(f"X Error en /api/notificar-whatsapp: {sanitize_forensic_log(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# =========================================================================
+# ⏱️ CRON AUTOMÁTICO CADA 2 HORAS: BARRIDO CTI + DEDUPLICACIÓN EN FIRESTORE
+# =========================================================================
+@app.route('/api/cron/barrido-cti-zero-hour', methods=['POST', 'GET'])
+@limiter.exempt
+def cron_barrido_cti_zero_hour():
+    try:
+        # 1. Leer de Firestore las vulnerabilidades ya notificadas para no repetir WhatsApp/Gmail
+        hashes_procesados = []
+        if db:
+            docs_existentes = db.collection('cti_zero_hour_alerts').limit(100).stream()
+            for d in docs_existentes:
+                h = (d.to_dict() or {}).get("state_hash")
+                if h:
+                    hashes_procesados.append(h)
+
+        # 2. Invocar a SentinelRecon en modo estricto (force_notify_top = False)
+        recon_url = "https://sentinelrecon-369266483091.us-central1.run.app/api/cti/zero-hour-scan"
+        resp = http_requests.post(
+            recon_url,
+            json={
+                "target_host": None,
+                "admin_email": "pablocaldera1984@gmail.com",
+                "client_email": "",
+                "processed_state_hashes": hashes_procesados,
+                "force_notify_top": False
+            },
+            timeout=55
+        )
+        data = resp.json() if resp.status_code == 200 else {}
+        nuevas = data.get("dispatched_alerts") or []
+
+        # 3. Si hubo hallazgos críticos nuevos (P0/P1), guardarlos en Firestore para que aparezcan en portal_admin
+        if db and nuevas:
+            for item in nuevas:
+                sig = item.get("signal") or {}
+                adv = item.get("advisory") or {}
+                vuln_id = str(sig.get("vuln_id") or "CVE-UNKNOWN")
+                doc_id = re.sub(r"[^a-zA-Z0-9_-]", "_", vuln_id)
+                db.collection('cti_zero_hour_alerts').document(doc_id).set({
+                    "vuln_id": vuln_id,
+                    "state_hash": sig.get("state_hash", ""),
+                    "matched_technologies": sig.get("matched_technologies", []),
+                    "zhr_score": sig.get("zhr_score", 0),
+                    "alert_tier": sig.get("alert_tier", "P0_CRITICAL_IMMEDIATE"),
+                    "email_subject": adv.get("email_subject", ""),
+                    "cli_patch_command": adv.get("cli_patch_command", ""),
+                    "official_patch_links": adv.get("official_patch_links", []),
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }, merge=True)
+
+        return jsonify({
+            "status": "ok",
+            "nuevas_alertas_criticas": len(nuevas),
+            "hashes_conocidos_omitidos": len(hashes_procesados)
+        }), 200
+
+    except Exception as e:
+        print(f"X Error en cron_barrido_cti_zero_hour: {sanitize_forensic_log(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
