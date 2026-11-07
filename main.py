@@ -5127,20 +5127,22 @@ def api_notificar_whatsapp_cti():
 @app.route('/api/cron/barrido-cti-zero-hour', methods=['POST', 'GET'])
 @limiter.exempt
 def cron_barrido_cti_zero_hour():
+    import os
     import re
     import requests as req_client
     from datetime import datetime, timezone
     try:
-        # 1. Leer de Firestore las vulnerabilidades ya notificadas para no repetir WhatsApp/Gmail
+        # 1. Leer de bitacora_cti_zerohour las vulnerabilidades ya notificadas
         hashes_procesados = []
         if db:
-            docs_existentes = db.collection('cti_zero_hour_alerts').limit(100).stream()
+            docs_existentes = db.collection('bitacora_cti_zerohour').limit(150).stream()
             for d in docs_existentes:
-                h = (d.to_dict() or {}).get("state_hash")
+                doc_data = d.to_dict() or {}
+                h = doc_data.get("state_hash") or (doc_data.get("signal") or {}).get("state_hash")
                 if h:
                     hashes_procesados.append(h)
 
-        # 2. Invocar a SentinelRecon con margen de 120s para que nunca corte antes de guardar en Firestore
+        # 2. Invocar a SentinelRecon con margen de 120s
         recon_url = "https://sentinelrecon-369266483091.us-central1.run.app/api/cti/zero-hour-scan"
         resp = req_client.post(
             recon_url,
@@ -5156,8 +5158,9 @@ def cron_barrido_cti_zero_hour():
         data = resp.json() if resp.status_code == 200 else {}
         nuevas = data.get("dispatched_alerts") or []
 
-        # 3. Guardar en Firestore (portal_admin) y asegurar envío de WhatsApp si el puente estuvo ocupado
+        # 3. Guardar en bitacora_cti_zerohour y asegurar envío de WhatsApp
         if nuevas:
+            ahora_iso = datetime.now(timezone.utc).isoformat()
             for item in nuevas:
                 sig = item.get("signal") or {}
                 adv = item.get("advisory") or {}
@@ -5166,19 +5169,25 @@ def cron_barrido_cti_zero_hour():
                 doc_id = re.sub(r"[^a-zA-Z0-9_-]", "_", vuln_id)
 
                 if db:
-                    db.collection('cti_zero_hour_alerts').document(doc_id).set({
+                    db.collection('bitacora_cti_zerohour').document(doc_id).set({
                         "vuln_id": vuln_id,
+                        "cve_id": vuln_id,
                         "state_hash": sig.get("state_hash", ""),
                         "matched_technologies": sig.get("matched_technologies", []),
+                        "tecnologias": sig.get("matched_technologies", []),
                         "zhr_score": sig.get("zhr_score", 0),
                         "alert_tier": sig.get("alert_tier", "P0_CRITICAL_IMMEDIATE"),
                         "email_subject": adv.get("email_subject", ""),
+                        "asunto": adv.get("email_subject", ""),
                         "cli_patch_command": adv.get("cli_patch_command", ""),
                         "official_patch_links": adv.get("official_patch_links", []),
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "signal": sig,
+                        "advisory": adv,
+                        "timestamp": ahora_iso,
+                        "fecha": ahora_iso
                     }, merge=True)
 
-                # Si el worker estuvo bloqueado durante el cron, despachar el WhatsApp al liberar la respuesta
+                # Respaldo de WhatsApp si el puente estuvo ocupado
                 if not delivery.get("whatsapp_dispatched") and delivery.get("whatsapp_preview"):
                     try:
                         req_client.post(
@@ -5196,6 +5205,7 @@ def cron_barrido_cti_zero_hour():
 
         return jsonify({
             "status": "ok",
+            "coleccion": "bitacora_cti_zerohour",
             "nuevas_alertas_criticas": len(nuevas),
             "hashes_conocidos_omitidos": len(hashes_procesados)
         }), 200
